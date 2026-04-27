@@ -3,11 +3,6 @@ let exams = JSON.parse(localStorage.getItem('examScheduler_data')) || [];
 let currentFiscalYear, showingArchive = false, activeTimers = {};
 let currentUser = null;
 
-// Dark Mode Init
-if(localStorage.getItem('examScheduler_darkmode') === 'true') {
-    document.body.classList.add('dark-mode');
-}
-
 // === Firebase Setup ===
 const firebaseConfig = {
     apiKey: "AIzaSyCdFxHceR1tWkwldr3DzwVIUp_Wqf-ekxY",
@@ -106,46 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const userEmail = document.getElementById('user-email');
     const btnLoginGoogle = document.getElementById('btn-login-google');
     const btnLogout = document.getElementById('btn-logout');
-
-    const toggleDarkMode = document.getElementById('toggle-darkmode');
-    const toggleNotifications = document.getElementById('toggle-notifications');
-
-    if(toggleDarkMode) {
-        toggleDarkMode.checked = localStorage.getItem('examScheduler_darkmode') === 'true';
-        toggleDarkMode.addEventListener('change', (e) => {
-            if(e.target.checked) {
-                document.body.classList.add('dark-mode');
-                localStorage.setItem('examScheduler_darkmode', 'true');
-            } else {
-                document.body.classList.remove('dark-mode');
-                localStorage.setItem('examScheduler_darkmode', 'false');
-            }
-        });
-    }
-
-    if(toggleNotifications) {
-        toggleNotifications.checked = localStorage.getItem('examScheduler_notifications') === 'true';
-        toggleNotifications.addEventListener('change', async (e) => {
-            if(e.target.checked) {
-                if (!("Notification" in window)) {
-                    alert("このブラウザはプッシュ通知に対応していません。");
-                    e.target.checked = false;
-                    return;
-                }
-                const perm = await Notification.requestPermission();
-                if(perm === 'granted') {
-                    localStorage.setItem('examScheduler_notifications', 'true');
-                    new Notification("プッシュ通知をオンにしました！", { body: "試験が近づくとお知らせします。" });
-                } else {
-                    e.target.checked = false;
-                    localStorage.setItem('examScheduler_notifications', 'false');
-                    alert("ブラウザの通知許可が拒否されています。設定をご確認ください。");
-                }
-            } else {
-                localStorage.setItem('examScheduler_notifications', 'false');
-            }
-        });
-    }
 
     if(btnLoginGoogle) {
         btnLoginGoogle.onclick = () => {
