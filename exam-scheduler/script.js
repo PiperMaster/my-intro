@@ -22,16 +22,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const w=document.createElement('div'); w.className='date-row-wrapper';
         w.innerHTML=`${!first?'<button type="button" class="btn-remove-date" title="削除"><i class="fas fa-times"></i></button>':''}
         <div class="form-row" style="margin-bottom:0.5rem">
-            <div class="form-group"><label>申込開始日</label><input type="date" class="as-inp" value="${as}"></div>
-            <div class="form-group"><label>申込終了日</label><input type="date" class="ae-inp" value="${ae}"></div>
+            <div class="form-group"><label>申込開始日</label><input type="text" class="as-inp custom-date-picker" placeholder="未設定" value="${as}"></div>
+            <div class="form-group"><label>申込終了日</label><input type="text" class="ae-inp custom-date-picker" placeholder="未設定" value="${ae}"></div>
         </div>
         <input type="hidden" class="es-inp" value="${st}">
         <div class="form-row">
-            <div class="form-group"><label>受験日 <span class="required">*</span></label><input type="date" class="ed-inp" required value="${dv}"></div>
-            <div class="form-group"><label>受験時間</label><input type="time" class="et-inp" value="${tv}"></div>
+            <div class="form-group"><label>受験日 <span class="required">*</span></label><input type="text" class="ed-inp custom-date-picker" required placeholder="日付を選択" value="${dv}"></div>
+            <div class="form-group"><label>受験時間</label><input type="text" class="et-inp custom-time-picker" placeholder="未設定" value="${tv}"></div>
         </div>`;
         if(!first) w.querySelector('.btn-remove-date').onclick=()=>w.remove();
         dc.appendChild(w);
+        
+        // Flatpickr Initialize
+        const fpOptions = { locale: "ja", dateFormat: "Y-m-d", disableMobile: true, position: "above left" };
+        flatpickr(w.querySelectorAll('.custom-date-picker'), fpOptions);
+        
+        const timeOptions = { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, disableMobile: true, position: "above left" };
+        flatpickr(w.querySelectorAll('.custom-time-picker'), timeOptions);
     }
     $('btn-add-date-row').onclick=()=>createDateRow();
 
@@ -116,18 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('btn-settings').onclick=()=>settingsModal.classList.remove('hidden');
     $('btn-close-settings').onclick=()=>settingsModal.classList.add('hidden');
     settingsModal.onclick=e=>{if(e.target===settingsModal)settingsModal.classList.add('hidden');};
-    $('btn-export-data').onclick=()=>{
-        const a=document.createElement('a');
-        a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(exams));
-        a.download=`exam_backup_${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(a); a.click(); a.remove();
-    };
-    $('file-import-data').onchange=e=>{
-        const f=e.target.files[0]; if(!f) return;
-        const r=new FileReader();
-        r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(Array.isArray(d)){exams=d;saveExams();render();alert('データを復元しました！');settingsModal.classList.add('hidden');}}catch(err){alert('読み込みに失敗しました。');}};
-        r.readAsText(f); e.target.value='';
-    };
+
 
     // === Form Submit ===
     examForm.onsubmit=e=>{

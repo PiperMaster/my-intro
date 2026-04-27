@@ -35,13 +35,14 @@
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; font-size: 90%; }
+.hidden { display: none !important; }
 
 body {
     font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
     background: var(--bg-body);
     color: var(--text-primary);
     line-height: 1.6;
-    padding-top: 10rem; /* Fixedヘッダーのための確実な余白 */
+    padding-top: 8rem; /* Fixedヘッダーのための十分な余白 */
     padding-bottom: 3rem;
 }
 
@@ -68,7 +69,7 @@ body {
     max-width: calc(960px - 3rem);
     margin: 0 auto;
     display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 1rem; 
+    flex-wrap: nowrap; gap: 1rem; overflow: hidden;
     padding: 1rem 1.5rem; 
     background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -87,6 +88,9 @@ body {
     font-size: 1.5rem; font-weight: 800; color: var(--text-primary);
     display: flex; align-items: center; gap: 0.8rem;
     letter-spacing: -0.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1;
+}
+.header h1 a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.8rem; width: 100%;
 }
 .header h1 i { color: var(--primary-color); background: var(--primary-light); padding: 0.6rem; border-radius: var(--radius-sm); font-size: 1.2rem; }
 
@@ -454,3 +458,105 @@ body {
 .user-profile.hidden { display: none; }
 .user-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid white; box-shadow: var(--shadow-sm); }
 .btn-icon-only { padding: 0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+
+/* ===========================
+   Settings UI & Toggles
+   =========================== */
+.toggle-switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-switch .slider {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--border-color); transition: .3s; border-radius: 34px;
+}
+.toggle-switch .slider:before {
+    position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px;
+    background-color: white; transition: .3s; border-radius: 50%; box-shadow: var(--shadow-sm);
+}
+.toggle-switch input:checked + .slider { background-color: var(--primary-color); }
+.toggle-switch input:checked + .slider:before { transform: translateX(24px); }
+
+/* ===========================
+   Material Design 2 Dark Theme
+   =========================== */
+body.dark-mode {
+    --bg-body: #121212;
+    --bg-card: #1E1E1E;
+    --text-primary: rgba(255, 255, 255, 0.87);
+    --text-secondary: rgba(255, 255, 255, 0.60);
+    --border-color: #333333;
+    --border-light: #2C2C2C;
+    --primary-color: #818CF8;
+    --primary-light: rgba(129, 140, 248, 0.15);
+    --secondary-color: #FB923C;
+    --secondary-light: rgba(251, 146, 60, 0.15);
+    --danger-color: #CF6679;
+    background: var(--bg-body);
+    color: var(--text-primary);
+}
+body.dark-mode .modal-content, body.dark-mode .setting-group, body.dark-mode .date-row-wrapper, body.dark-mode .login-box { background: var(--bg-card); border-color: var(--border-color); }
+body.dark-mode .mini-day.has-apply-period { background: rgba(251, 146, 60, 0.25); border-color: rgba(251, 146, 60, 0.6); }
+body.dark-mode .mini-day.has-apply-period-finished { background: rgba(251, 146, 60, 0.1); border-color: rgba(251, 146, 60, 0.3); }
+body.dark-mode input, body.dark-mode select, body.dark-mode textarea { background: #2C2C2C; color: var(--text-primary); border-color: #444444; }
+body.dark-mode .btn-secondary { background: #2C2C2C; color: var(--text-primary); border-color: #444444; }
+body.dark-mode .btn-secondary:hover { background: #383838; }
+body.dark-mode .modal-header { background: var(--bg-card); border-bottom-color: var(--border-color); }
+body.dark-mode .mini-month { background: #1E1E1E; }
+body.dark-mode .header { background: rgba(30, 30, 30, 0.9); border-color: var(--border-color); }
+
+/* ===========================
+   Flatpickr Custom Styles (React Day Picker style)
+   =========================== */
+.flatpickr-calendar {
+    font-family: inherit;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+    border: none !important;
+    border-radius: 16px !important;
+    padding: 8px !important;
+    box-sizing: content-box !important;
+    transform: scale(0.68) !important; /* !importantで一瞬元のサイズに戻るのを防ぐ */
+    transform-origin: bottom left; /* 上に開くため基点を下にする */
+    animation: none !important; /* 標準のフワッと開くアニメーションを無効化 */
+}
+.flatpickr-calendar.animate.open {
+    animation: none !important; /* アニメーションの完全無効化 */
+}
+.flatpickr-day {
+    border-radius: 50% !important;
+    color: var(--text-primary);
+    transition: all 0.2s;
+    font-weight: 500;
+}
+.flatpickr-day:hover, .flatpickr-day:focus {
+    background: var(--border-light) !important;
+    border-color: transparent !important;
+}
+.flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange, .flatpickr-day.selected.inRange, .flatpickr-day.startRange.inRange, .flatpickr-day.endRange.inRange, .flatpickr-day.selected:focus, .flatpickr-day.startRange:focus, .flatpickr-day.endRange:focus, .flatpickr-day.selected:hover, .flatpickr-day.startRange:hover, .flatpickr-day.endRange:hover, .flatpickr-day.selected.prevMonthDay, .flatpickr-day.startRange.prevMonthDay, .flatpickr-day.endRange.prevMonthDay, .flatpickr-day.selected.nextMonthDay, .flatpickr-day.startRange.nextMonthDay, .flatpickr-day.endRange.nextMonthDay {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border-color: transparent !important;
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+}
+.flatpickr-day.today {
+    border-color: var(--primary-color) !important;
+    font-weight: 800;
+}
+.flatpickr-months .flatpickr-month {
+    color: var(--text-primary) !important;
+    fill: var(--text-primary) !important;
+}
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+    font-weight: 700;
+}
+.flatpickr-weekday {
+    color: var(--text-secondary) !important;
+    font-weight: 600 !important;
+    font-size: 0.8rem;
+}
+
+/* Flatpickr Dark Mode Overrides */
+body.dark-mode .flatpickr-calendar { background: var(--bg-card); box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important; }
+body.dark-mode .flatpickr-day { color: var(--text-primary); }
+body.dark-mode .flatpickr-day:hover { background: #333 !important; }
+body.dark-mode .flatpickr-day.selected { background: var(--primary-color) !important; color: white !important; }
+body.dark-mode .flatpickr-day.inRange, body.dark-mode .flatpickr-day:hover { background: var(--border-light); border-color: transparent; }
+body.dark-mode .flatpickr-time input { color: var(--text-primary); }
