@@ -94,9 +94,11 @@ window.switchCardTab = (eid, tab) => {
 
 // === Firebase Auth Listeners ===
 document.addEventListener('DOMContentLoaded', () => {
-    const loginOverlay = document.getElementById('login-overlay');
-    const userProfile = document.getElementById('user-profile');
+    const authUnlogged = document.getElementById('auth-unlogged');
+    const authLogged = document.getElementById('auth-logged');
     const userAvatar = document.getElementById('user-avatar');
+    const userName = document.getElementById('user-name');
+    const userEmail = document.getElementById('user-email');
     const btnLoginGoogle = document.getElementById('btn-login-google');
     const btnLogout = document.getElementById('btn-logout');
 
@@ -112,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if(btnLogout) {
         btnLogout.onclick = () => {
-            if(confirm("ログアウトしますか？")) {
+            if(confirm("ログアウトしますか？（ローカルのデータ表示に戻ります）")) {
                 auth.signOut();
             }
         };
@@ -121,16 +123,20 @@ document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(user => {
         if(user) {
             currentUser = user;
-            loginOverlay.classList.add('hidden');
-            userProfile.classList.remove('hidden');
-            userAvatar.src = user.photoURL || '';
+            if(authUnlogged) authUnlogged.classList.add('hidden');
+            if(authLogged) authLogged.classList.remove('hidden');
+            if(userAvatar) userAvatar.src = user.photoURL || '';
+            if(userName) userName.textContent = user.displayName || 'ユーザー';
+            if(userEmail) userEmail.textContent = user.email || '';
             loadExamsFromCloud();
         } else {
             currentUser = null;
-            exams = []; // Clear local data on logout
+            // Load local data on logout
+            exams = JSON.parse(localStorage.getItem('examScheduler_data')) || [];
             if(window.render) window.render();
-            loginOverlay.classList.remove('hidden');
-            userProfile.classList.add('hidden');
+            
+            if(authUnlogged) authUnlogged.classList.remove('hidden');
+            if(authLogged) authLogged.classList.add('hidden');
         }
     });
 });
