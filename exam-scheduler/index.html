@@ -21,12 +21,6 @@
                 </a>
             </h1>
             <div class="header-actions">
-                <!-- 年度切り替えUI -->
-                <div class="fiscal-year-nav">
-                    <button id="prev-year" aria-label="前の年度"><i class="fas fa-chevron-left"></i></button>
-                    <span id="current-fiscal-year">2026年度 (26年4月 - 27年3月)</span>
-                    <button id="next-year" aria-label="次の年度"><i class="fas fa-chevron-right"></i></button>
-                </div>
                 <button class="btn btn-secondary" id="btn-settings" title="データ管理"><i class="fas fa-cog"></i> <span class="action-text">設定</span></button>
                 <button class="btn btn-primary" id="btn-add-exam"><i class="fas fa-plus"></i> <span class="action-text">新規追加</span></button>
             </div>
@@ -34,7 +28,15 @@
 
         <!-- ミニカレンダー -->
         <section class="mini-calendar-section">
-            <h2 class="section-heading"><i class="far fa-calendar-alt"></i> 年間カレンダー</h2>
+            <div style="display: flex; align-items: center; justify-content: flex-start; gap: 1.5rem; margin-bottom: 1.5rem;">
+                <h2 class="section-heading" style="margin-bottom: 0;"><i class="far fa-calendar-alt"></i> 年間カレンダー</h2>
+                <!-- 年度切り替えUI -->
+                <div class="fiscal-year-nav">
+                    <button id="prev-year" aria-label="前の年度"><i class="fas fa-chevron-left"></i></button>
+                    <span id="current-fiscal-year">2026年度 (26年4月 - 27年3月)</span>
+                    <button id="next-year" aria-label="次の年度"><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
             <div id="mini-calendar" class="mini-calendar-grid"></div>
         </section>
 
@@ -110,17 +112,24 @@
                     </div>
                 </div>
                 <div class="setting-group">
-                    <h3 class="setting-title"><i class="fas fa-download"></i> データのバックアップ</h3>
-                    <p class="setting-desc">現在のすべてのデータをファイルとして書き出します。</p>
-                    <button type="button" id="btn-export-data" class="btn btn-primary" style="width: 100%;"><i class="fas fa-download"></i> バックアップを保存</button>
+                    <h3 class="setting-title"><i class="fas fa-bell"></i> プッシュ通知</h3>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <p class="setting-desc" style="margin-bottom: 0;">試験が近づいた際に通知でお知らせします。</p>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggle-notifications">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
                 </div>
                 <div class="setting-group">
-                    <h3 class="setting-title"><i class="fas fa-upload"></i> データの復元</h3>
-                    <p class="setting-desc">保存したファイルからデータを読み込みます。</p>
-                    <label class="btn btn-secondary btn-file-upload">
-                        <i class="fas fa-upload"></i> ファイルを選択して復元
-                        <input type="file" id="file-import-data" accept=".json" style="display: none;">
-                    </label>
+                    <h3 class="setting-title"><i class="fas fa-moon"></i> ダークモード</h3>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <p class="setting-desc" style="margin-bottom: 0;">画面のテーマを暗い色に変更します。</p>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggle-darkmode">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
                 </div>
             </div>
         </div>
