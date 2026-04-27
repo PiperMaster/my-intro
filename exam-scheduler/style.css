@@ -1,4 +1,4 @@
-/* ===========================
+﻿/* ===========================
    CSS Variables & Base (Vibrant SaaS / Bento UI)
    =========================== */
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
@@ -42,7 +42,7 @@ body {
     background: var(--bg-body);
     color: var(--text-primary);
     line-height: 1.6;
-    padding-top: 8rem; /* Fixedヘッダーのための十分な余白 */
+    padding-top: 8rem; /* Fixed郢晏･繝｣郢敖郢晢ｽｼ邵ｺ・ｮ邵ｺ貅假ｽ∫ｸｺ・ｮ陷岩・繝ｻ邵ｺ・ｪ闖ｴ蜥丞項 */
     padding-bottom: 3rem;
 }
 
@@ -198,8 +198,8 @@ body {
 .mini-day.has-apply-finished { background: var(--secondary-light); color: #c2410c; border: 2px dashed #fb923c; font-weight: 800; }
 .mini-day.has-apply-end-finished { background: #fee2e2; color: #b91c1c; border: 2px dashed #f87171; font-weight: 800; }
 
-.mini-day.has-apply-period { background: rgba(249, 115, 22, 0.15); border-top: 2px dotted rgba(249, 115, 22, 0.4); border-bottom: 2px dotted rgba(249, 115, 22, 0.4); border-radius: 0; }
-.mini-day.has-apply-period-finished { background: rgba(249, 115, 22, 0.05); border-top: 2px dotted rgba(249, 115, 22, 0.2); border-bottom: 2px dotted rgba(249, 115, 22, 0.2); border-radius: 0; }
+/* removed has-apply-period */
+/* removed has-apply-period-finished */
 
 .mini-day.clickable { cursor: pointer; }
 .mini-day.clickable:hover { transform: scale(1.2) translateY(-2px); z-index: 5; }
@@ -219,7 +219,8 @@ body {
 /* Modern Glass Tooltip */
 .modern-tooltip {
     display: none; position: absolute; bottom: calc(100% + 12px); left: 50%;
-    transform: translateX(-50%); 
+    transform: translateX(-50%) scale(0.8);
+    transform-origin: bottom center;
     background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     color: white; padding: 0.6rem 1rem;
     border-radius: var(--radius-sm); z-index: 50; min-width: 180px; 
@@ -232,7 +233,7 @@ body {
     border-top-color: rgba(17, 24, 39, 0.85);
 }
 .mini-day:hover .modern-tooltip { display: block; animation: tooltipFadeIn 0.2s ease forwards; }
-.tooltip-event { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; font-size: 0.75rem; }
+.tooltip-event { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; font-size: 0.85rem; }
 .tooltip-event + .tooltip-event, .tooltip-memo + .tooltip-event { border-top: 1px solid rgba(255,255,255,0.1); }
 .tooltip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .tooltip-dot.exam { background: #818cf8; box-shadow: 0 0 8px #818cf8; }
@@ -494,8 +495,8 @@ body.dark-mode {
     color: var(--text-primary);
 }
 body.dark-mode .modal-content, body.dark-mode .setting-group, body.dark-mode .date-row-wrapper, body.dark-mode .login-box { background: var(--bg-card); border-color: var(--border-color); }
-body.dark-mode .mini-day.has-apply-period { background: rgba(251, 146, 60, 0.25); border-color: rgba(251, 146, 60, 0.6); }
-body.dark-mode .mini-day.has-apply-period-finished { background: rgba(251, 146, 60, 0.1); border-color: rgba(251, 146, 60, 0.3); }
+/* body.dark-mode .mini-day.has-apply-period { background: rgba(251, 146, 60, 0.25); border-color: rgba(251, 146, 60, 0.6); } */
+/* body.dark-mode .mini-day.has-apply-period-finished { background: rgba(251, 146, 60, 0.1); border-color: rgba(251, 146, 60, 0.3); } */
 body.dark-mode input, body.dark-mode select, body.dark-mode textarea { background: #2C2C2C; color: var(--text-primary); border-color: #444444; }
 body.dark-mode .btn-secondary { background: #2C2C2C; color: var(--text-primary); border-color: #444444; }
 body.dark-mode .btn-secondary:hover { background: #383838; }
@@ -513,12 +514,12 @@ body.dark-mode .header { background: rgba(30, 30, 30, 0.9); border-color: var(--
     border-radius: 16px !important;
     padding: 8px !important;
     box-sizing: content-box !important;
-    transform: scale(0.68) !important; /* !importantで一瞬元のサイズに戻るのを防ぐ */
-    transform-origin: bottom left; /* 上に開くため基点を下にする */
-    animation: none !important; /* 標準のフワッと開くアニメーションを無効化 */
+    transform: scale(0.68) !important; /* !important邵ｺ・ｧ闕ｳﾂ霑ｸ・ｬ陷医・繝ｻ郢ｧ・ｵ郢ｧ・､郢ｧ・ｺ邵ｺ・ｫ隰鯉ｽｻ郢ｧ荵昴・郢ｧ蟶昜ｺ溽ｸｺ繝ｻ*/
+    transform-origin: bottom left; /* 闕ｳ鄙ｫ竊馴ｫ｢荵晢ｿ･邵ｺ貅假ｽ∬搏・ｺ霓､・ｹ郢ｧ蜑・ｽｸ荵昶・邵ｺ蜷ｶ・・*/
+    animation: none !important; /* 隶灘綜・ｺ謔ｶ繝ｻ郢晁ｼ釆｡郢昴・竊帝ｫ｢荵晢ｿ･郢ｧ・｢郢昜ｹ斟鍋ｹ晢ｽｼ郢ｧ・ｷ郢晢ｽｧ郢晢ｽｳ郢ｧ蝣､笏瑚怏・ｹ陋ｹ繝ｻ*/
 }
 .flatpickr-calendar.animate.open {
-    animation: none !important; /* アニメーションの完全無効化 */
+    animation: none !important; /* 郢ｧ・｢郢昜ｹ斟鍋ｹ晢ｽｼ郢ｧ・ｷ郢晢ｽｧ郢晢ｽｳ邵ｺ・ｮ陞ｳ謔溘・霎滂ｽ｡陷会ｽｹ陋ｹ繝ｻ*/
 }
 .flatpickr-day {
     border-radius: 50% !important;
@@ -560,3 +561,6 @@ body.dark-mode .flatpickr-day:hover { background: #333 !important; }
 body.dark-mode .flatpickr-day.selected { background: var(--primary-color) !important; color: white !important; }
 body.dark-mode .flatpickr-day.inRange, body.dark-mode .flatpickr-day:hover { background: var(--border-light); border-color: transparent; }
 body.dark-mode .flatpickr-time input { color: var(--text-primary); }
+
+
+

@@ -361,23 +361,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         }
-                        if(as && ae){
-                            const dStart = new Date(as); dStart.setHours(0,0,0,0);
-                            const dEnd = new Date(ae); dEnd.setHours(0,0,0,0);
-                            if(currDate > dStart && currDate < dEnd){
-                                if(!fid)fid=ex.id;
-                                const isApplied = (st==='applied' || st==='studying' || st==='finished');
-                                if(isApplied) {
-                                    if(applyPeriodType !== 'active') applyPeriodType = 'finished';
-                                } else {
-                                    applyPeriodType = 'active';
-                                }
-                            }
-                        }
                     });
                 });
                 let tip='';
                 let tipContent = '';
+                if(today.getFullYear()===yr&&today.getMonth()+1===m&&today.getDate()===d) {
+                    tipContent += `<div class="tooltip-event" style="margin-bottom: 4px;"><i class="fas fa-star" style="color:var(--primary-color); margin-right:6px;"></i><span class="tooltip-name" style="font-weight:800;">本日 ${m}月${d}日</span></div>`;
+                }
                 if(hName) tipContent += `<div class="tooltip-holiday"><i class="fas fa-flag"></i> ${hName}</div>`;
                 if(evs.length){
                     evs.forEach(ev => {
