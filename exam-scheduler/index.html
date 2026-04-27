@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="資格試験スケジュール管理アプリ - 年間カレンダーで一元管理">
+    <title>資格試験 スケジュール管理</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- ヘッダー -->
+        <header class="header">
+            <h1>
+                <a href="#" onclick="location.reload(); return false;" style="text-decoration:none; color:inherit; display:flex; align-items:center; gap:0.8rem;">
+                    <i class="fas fa-calendar-check"></i> パッとわかる！受験スケジュールシート
+                </a>
+            </h1>
+            <div class="header-actions">
+                <!-- User Profile -->
+                <div id="user-profile" class="user-profile hidden">
+                    <img id="user-avatar" src="" alt="User" class="user-avatar">
+                    <button id="btn-logout" class="btn btn-secondary btn-icon-only" title="ログアウト"><i class="fas fa-sign-out-alt"></i></button>
+                </div>
+                <!-- 年度切り替えUI -->
+                <div class="fiscal-year-nav">
+                    <button id="prev-year" aria-label="前の年度"><i class="fas fa-chevron-left"></i></button>
+                    <span id="current-fiscal-year">2026年度 (26年4月 - 27年3月)</span>
+                    <button id="next-year" aria-label="次の年度"><i class="fas fa-chevron-right"></i></button>
+                </div>
+                <button class="btn btn-secondary" id="btn-settings" title="データ管理"><i class="fas fa-cog"></i> <span class="action-text">設定</span></button>
+                <button class="btn btn-primary" id="btn-add-exam"><i class="fas fa-plus"></i> <span class="action-text">新規追加</span></button>
+            </div>
+        </header>
+
+        <!-- ミニカレンダー -->
+        <section class="mini-calendar-section">
+            <h2 class="section-heading"><i class="far fa-calendar-alt"></i> 年間カレンダー</h2>
+            <div id="mini-calendar" class="mini-calendar-grid"></div>
+        </section>
+
+
+
+        <!-- 登録済み試験リスト -->
+        <section>
+            <h2 class="section-heading"><i class="fas fa-bookmark"></i> 登録済み試験</h2>
+            <div id="exam-list" class="exam-list"></div>
+        </section>
+    </div>
+
+    <!-- 試験登録・編集モーダル -->
+    <div id="exam-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">資格試験を追加</h2>
+                <button class="btn-close" id="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="exam-form">
+                    <input type="hidden" id="exam-id">
+                    <input type="hidden" id="edit-date-idx">
+                    
+                    <div class="form-group">
+                        <label for="exam-name">資格試験名 <span class="required">*</span></label>
+                        <input type="text" id="exam-name" required placeholder="例: TOEIC L&R, ITパスポート">
+                        <div id="recent-exams-container" style="margin-top: 0.6rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;"></div>
+                    </div>
+
+                    <div id="exam-dates-container" class="exam-dates-container">
+                        <!-- 日程行が動的に追加される -->
+                    </div>
+                    <button type="button" id="btn-add-date-row" class="btn btn-secondary" style="width: 100%; margin-bottom: 1rem;">
+                        <i class="fas fa-plus"></i> 別の日程を追加
+                    </button>
+                    <button type="button" id="btn-delete-date" class="btn btn-secondary" style="width: 100%; margin-bottom: 1rem; color: var(--danger-color); border-color: var(--danger-color); display: none;">
+                        <i class="fas fa-trash"></i> この日程を削除
+                    </button>
+
+                    <div class="form-actions">
+                        <button type="button" id="btn-cancel" class="btn btn-secondary">キャンセル</button>
+                        <button type="submit" class="btn btn-primary">保存する</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 設定モーダル -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-cog"></i> データ管理・設定</h2>
+                <button class="btn-close btn-close-large" id="btn-close-settings">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <h3 class="setting-title"><i class="fas fa-download"></i> データのバックアップ</h3>
+                    <p class="setting-desc">現在のすべてのデータをファイルとして書き出します。</p>
+                    <button type="button" id="btn-export-data" class="btn btn-primary" style="width: 100%;"><i class="fas fa-download"></i> バックアップを保存</button>
+                </div>
+                <div class="setting-group">
+                    <h3 class="setting-title"><i class="fas fa-upload"></i> データの復元</h3>
+                    <p class="setting-desc">保存したファイルからデータを読み込みます。</p>
+                    <label class="btn btn-secondary btn-file-upload">
+                        <i class="fas fa-upload"></i> ファイルを選択して復元
+                        <input type="file" id="file-import-data" accept=".json" style="display: none;">
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-box">
+            <h2><i class="fas fa-lock"></i> ログイン</h2>
+            <p>スケジュールをクラウドで管理・同期するために<br>Googleアカウントでログインしてください。</p>
+            <button id="btn-login-google" class="btn btn-primary" style="width:100%; margin-top:1.5rem; font-size:1.1rem; padding: 0.8rem;">
+                <i class="fab fa-google"></i> Googleでログイン
+            </button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+    <script src="app.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
