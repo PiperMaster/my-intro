@@ -82,7 +82,29 @@ function formatStudyTime(sec) {
 // === Global functions for onclick handlers ===
 window.editExam = (id) => { const e=exams.find(x=>x.id===id); if(e) openModal(e); };
 window.openModalWithDate = (y,m) => { openModal(null, `${y}-${String(m).padStart(2,'0')}-01`); };
-window.scrollToExam = (id) => { const el=document.getElementById(`card-${id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('highlight-pulse'); setTimeout(()=>el.classList.remove('highlight-pulse'),2000); } };
+window.scrollToExam = (id, date=null, targetIds='') => {
+    const ids = targetIds ? targetIds.split(',').filter(Boolean) : [id];
+    const el=document.getElementById(`card-${id}`);
+    if(el){
+        switchCardTab(id, 'details');
+        el.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    ids.forEach(targetId=>{
+        const card=document.getElementById(`card-${targetId}`);
+        if(!card) return;
+        switchCardTab(targetId, 'details');
+        card.classList.add('highlight-pulse');
+        setTimeout(()=>card.classList.remove('highlight-pulse'),2000);
+        if(!date) return;
+        const dateRows = card.querySelectorAll(`[data-exam-date="${date}"], [data-apply-start="${date}"], [data-apply-end="${date}"]`);
+        dateRows.forEach(row=>{
+            row.classList.remove('date-highlight-pulse');
+            void row.offsetWidth;
+            row.classList.add('date-highlight-pulse');
+            setTimeout(()=>row.classList.remove('date-highlight-pulse'),2400);
+        });
+    });
+};
 
 window.switchCardTab = (eid, tab) => {
     ['details','memo'].forEach(t => { 

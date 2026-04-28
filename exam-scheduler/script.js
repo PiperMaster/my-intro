@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
 
     // === Date Row ===
+    function lockPageScroll(){ document.body.classList.add('modal-open'); }
+    function unlockPageScroll(){ document.body.classList.remove('modal-open'); }
+
     function createDateRow(dv='',tv='',as='',ae='',st='planning',first=false){
         const w=document.createElement('div'); w.className='date-row-wrapper';
         w.innerHTML=`${!first?'<button type="button" class="btn-remove-date" title="削除"><i class="fas fa-times"></i></button>':''}
@@ -45,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // === Modal ===
     function openModal(id=null, dateIdx=null){
         modal.classList.remove('hidden'); dc.innerHTML='';
+        lockPageScroll();
         const exId = typeof id === 'string' ? id : null;
         const ex = exId ? exams.find(e=>e.id===exId) : null;
         
@@ -74,6 +78,11 @@ document.addEventListener('DOMContentLoaded', () => {
             createDateRow('','','','','planning',true);
         }
         renderRecentExams();
+        const smartInput = $('smart-schedule-input');
+        if(smartInput){
+            smartInput.value = '';
+            smartInput.style.height = '';
+        }
     }
     window.openModal = openModal;
     window.editExam = openModal;
@@ -102,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(pill);
         });
     }
-    function closeModal(){ modal.classList.add('hidden'); }
+    function closeModal(){ modal.classList.add('hidden'); unlockPageScroll(); }
     $('btn-add-exam').onclick=()=>openModal();
     $('btn-close-modal').onclick=closeModal;
     $('btn-cancel').onclick=closeModal;
@@ -119,10 +128,149 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     modal.onclick=e=>{if(e.target===modal)closeModal();};
 
+    // === Smart Schedule Parser ===
+    function toHalfWidth(str){
+        return str.replace(/[０-９]/g, ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0))
+            .replace(/[：]/g, ':');
+    }
+
+    function toDateValue(year, month, day){
+        const y=String(year), m=String(month).padStart(2,'0'), d=String(day).padStart(2,'0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function parseDateValue(value){
+        const [y,m,d]=value.split('-').map(Number);
+        return new Date(y, m-1, d);
+    }
+
+    function inferDateValue(token, anchorDate=null){
+        let year = token.year;
+        if(!year){
+            const today = new Date(); today.setHours(0,0,0,0);
+            year = anchorDate ? anchorDate.getFullYear() : today.getFullYear();
+            let candidate = new Date(year, token.month-1, token.day);
+            if(anchorDate && candidate > anchorDate) candidate = new Date(year-1, token.month-1, token.day);
+            if(!anchorDate && candidate < today) candidate = new Date(year+1, token.month-1, token.day);
+            year = candidate.getFullYear();
+        }
+        return toDateValue(year, token.month, token.day);
+    }
+
+    function extractDateTokens(text){
+        const tokens=[];
+        const re=/(?:(\d{4})[年\/\-.](\d{1,2})[月\/\-.](\d{1,2})日?|(\d{1,2})[月\/\-.](\d{1,2})日?)/g;
+        let match;
+        while((match=re.exec(text))){
+            const hasYear=!!match[1];
+            tokens.push({
+                raw: match[0],
+                index: match.index,
+                end: match.index + match[0].length,
+                year: hasYear ? Number(match[1]) : null,
+                month: Number(hasYear ? match[2] : match[4]),
+                day: Number(hasYear ? match[3] : match[5])
+            });
+        }
+        return tokens;
+    }
+
+    function extractTimeValue(text){
+        const match = text.match(/(\d{1,2})\s*(?::|時)\s*(\d{1,2})?\s*(?:分)?\s*(?:開始|から|スタート)?/);
+        if(!match) return '';
+        const hour = Number(match[1]);
+        const minute = match[2] ? Number(match[2]) : 0;
+        if(hour > 23 || minute > 59) return '';
+        return `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+    }
+
+    function getApplyRange(text){
+        const start=text.search(/申込|申し込み|受付|出願/);
+        if(start < 0) return null;
+        const rest=text.slice(start);
+        const endMatch=rest.search(/[。.\n]/);
+        return {start, end:endMatch >= 0 ? start + endMatch : text.length};
+    }
+
+    function parseExamName(text, examToken){
+        let source = examToken ? text.slice(0, examToken.index) : text.split(/[。.\n]/)[0];
+        source = source.replace(/申込.*$/,'').replace(/受験.*$/,'').replace(/試験.*$/,'').trim();
+        const woIndex = source.lastIndexOf('を');
+        if(woIndex > 0) source = source.slice(0, woIndex);
+        source = source.replace(/^(資格|試験|予定|今回は)\s*/,'').replace(/[、,\s]+$/,'').trim();
+        if(source) return source;
+
+        const fallback = text.match(/(?:^|[。.\n、,])\s*([^。.\n、,]+?)を(?:受験|受け|申し込|申込)/);
+        return fallback ? fallback[1].trim() : '';
+    }
+
+    function parseSmartSchedule(text){
+        const normalized = toHalfWidth(text).trim();
+        if(!normalized) return {};
+        const tokens = extractDateTokens(normalized);
+        const applyRange = getApplyRange(normalized);
+        const applyTokens = applyRange ? tokens.filter(t=>t.index>=applyRange.start && t.index<=applyRange.end) : [];
+        const examTokens = tokens.filter(t=>!applyTokens.includes(t));
+        const examToken = examTokens.find(t=>{
+            const around = normalized.slice(Math.max(0,t.index-12), Math.min(normalized.length,t.end+12));
+            return /受験|試験|受け|開催|実施|本番|当日/.test(around);
+        }) || examTokens[0] || null;
+
+        const result = {
+            name: parseExamName(normalized, examToken),
+            examDate: '',
+            examTime: extractTimeValue(normalized),
+            applyStart: '',
+            applyEnd: ''
+        };
+
+        if(examToken){
+            result.examDate = inferDateValue(examToken);
+        }
+        if(applyTokens.length >= 1){
+            const examAnchor = result.examDate ? parseDateValue(result.examDate) : null;
+            result.applyStart = inferDateValue(applyTokens[0], examAnchor);
+            if(applyTokens[1]) result.applyEnd = inferDateValue(applyTokens[1], examAnchor);
+        }
+        return result;
+    }
+
+    function applySmartSchedule(){
+        const parsed = parseSmartSchedule($('smart-schedule-input').value);
+        let applied = 0;
+        if(parsed.name){ $('exam-name').value = parsed.name; applied++; }
+        const row = dc.querySelector('.date-row-wrapper');
+        if(row){
+            if(parsed.applyStart){ row.querySelector('.as-inp').value = parsed.applyStart; applied++; }
+            if(parsed.applyEnd){ row.querySelector('.ae-inp').value = parsed.applyEnd; applied++; }
+            if(parsed.examDate){ row.querySelector('.ed-inp').value = parsed.examDate; applied++; }
+            if(parsed.examTime){ row.querySelector('.et-inp').value = parsed.examTime; applied++; }
+        }
+        if(!applied) alert('読み取れる日程が見つかりませんでした。例文に近い形式で入力してください。');
+    }
+    $('btn-parse-schedule').onclick=applySmartSchedule;
+    const smartScheduleInput = $('smart-schedule-input');
+    if(smartScheduleInput){
+        const resizeSmartInput = () => {
+            smartScheduleInput.style.height = 'auto';
+            smartScheduleInput.style.height = `${smartScheduleInput.scrollHeight}px`;
+        };
+        smartScheduleInput.addEventListener('input', resizeSmartInput);
+        resizeSmartInput();
+    }
+
     // === Settings ===
-    $('btn-settings').onclick=()=>settingsModal.classList.remove('hidden');
-    $('btn-close-settings').onclick=()=>settingsModal.classList.add('hidden');
-    settingsModal.onclick=e=>{if(e.target===settingsModal)settingsModal.classList.add('hidden');};
+    function openSettingsModal(){
+        settingsModal.classList.remove('hidden');
+        lockPageScroll();
+    }
+    function closeSettingsModal(){
+        settingsModal.classList.add('hidden');
+        unlockPageScroll();
+    }
+    $('btn-settings').onclick=openSettingsModal;
+    $('btn-close-settings').onclick=closeSettingsModal;
+    settingsModal.onclick=e=>{if(e.target===settingsModal)closeSettingsModal();};
 
 
     // === Form Submit ===
@@ -242,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const st=getStatusInfo(d.status||ex.status||'planning');
                 const as=d.applyStart!==undefined?d.applyStart:ex.applyStart, ae=d.applyEnd!==undefined?d.applyEnd:ex.applyEnd;
                 let ap=''; if(as||ae) ap=`<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.4rem"><i class="fas fa-edit" style="width:12px;margin-right:4px"></i>申込: ${as?formatDate(as):''} 〜 ${ae?formatDate(ae):''}</div>`;
-                return `<div style="margin-bottom:1rem; padding-bottom:0.8rem; border-bottom:1px solid var(--border-light)">
+                return `<div class="exam-date-item" data-exam-id="${ex.id}" data-exam-date="${d.date}" data-apply-start="${as||''}" data-apply-end="${ae||''}" style="margin-bottom:1rem; padding:0.55rem 0.55rem 0.8rem; border-bottom:1px solid var(--border-light); border-radius:10px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <strong class="clickable-date" style="color:var(--text-primary)" onclick="editExam('${ex.id}', ${i})" title="クリックして編集">${formatDate(d.date)} ${d.time?`(${d.time})`:''}</strong>
                         <span class="exam-status-badge ${st.class} clickable-status" onclick="cycleStatus('${ex.id}', ${i})" title="クリックでステータスを変更">${st.label}</span>
@@ -320,7 +468,8 @@ document.addEventListener('DOMContentLoaded', () => {
             for(let i=0;i<fd;i++) grid+='<div class="mini-day empty"></div>';
             const today=new Date(); today.setHours(0,0,0,0);
             for(let d=1;d<=dim;d++){
-                let cls=['mini-day'], dow=new Date(yr,m-1,d).getDay();
+                const cellDate = new Date(yr,m-1,d);
+                let cls=['mini-day'], dow=cellDate.getDay();
                 let hName = getHolidayName(yr, m, d);
                 if(dow===0||hName) cls.push('day-sunday'); else if(dow===6) cls.push('day-saturday');
                 let evs=[], fid=null, cellStyles=[];
@@ -388,22 +537,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(evs.length){
                     evs.forEach(ev=>{
                         const dotStyle=`background:${ev.color.bg};box-shadow:0 0 8px ${ev.color.bg};`;
-                        tipContent+=`<div class="tooltip-event"><span class="tooltip-dot" style="${dotStyle}"></span><span class="tooltip-name">${ev.name}</span><span class="tooltip-days">${ev.diffStr}</span></div>`;
+                        let eventContent=`<div class="tooltip-event"><span class="tooltip-dot" style="${dotStyle}"></span><span class="tooltip-name">${ev.name}</span><span class="tooltip-days">${ev.diffStr}</span></div>`;
                         const ex=exams.find(e=>e.id===ev.exId);
                         if(ex&&ex.memos){
                             ex.memos.forEach(memo=>{
                                 if(memo.targetDate==='all'||memo.targetDate===ev.edDate){
-                                    tipContent+=`<div class="tooltip-memo"><i class="fas fa-sticky-note"></i> <span>${memo.text}</span></div>`;
+                                    eventContent+=`<div class="tooltip-memo"><i class="fas fa-sticky-note"></i> <span>${memo.text}</span></div>`;
                                 }
                             });
                         }
+                        tipContent+=`<div class="tooltip-event-group" style="--event-color:${ev.color.bg};">${eventContent}</div>`;
                     });
                 }
                 if(tipContent) tip=`<div class="modern-tooltip">${tipContent}</div>`;
+                if(cellDate < today) cls.push('is-past');
                 if(today.getFullYear()===yr&&today.getMonth()+1===m&&today.getDate()===d) cls.push('is-today');
-                let oc=''; if(fid){cls.push('clickable');oc=`onclick="scrollToExam('${fid}')"`;}
+                const cellDateValue = toDateValue(yr, m, d);
+                const eventExamIds = [...new Set(evs.map(ev=>ev.exId))];
+                let oc=''; if(eventExamIds.length){cls.push('clickable');oc=`onclick="scrollToExam('${eventExamIds[0]}', '${cellDateValue}', '${eventExamIds.join(',')}')"`;}
                 if(mIdx<4) cls.push('tooltip-below');
-                grid+=`<div class="${cls.join(' ')}" style="${inlineStyle}" ${oc}>${d}${tip}</div>`;
+                const eventBadge = evs.length >= 2 ? `<span class="mini-event-badge">${evs.length}</span>` : '';
+                grid+=`<div class="${cls.join(' ')}" style="${inlineStyle}" ${oc}>${d}${eventBadge}${tip}</div>`;
             }
             mm.innerHTML=`<div class="mini-month-name">${m}月</div><div class="mini-days-header">${hdr}</div><div class="mini-days-grid">${grid}</div>`;
             miniCalEl.appendChild(mm);

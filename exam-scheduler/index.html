@@ -61,6 +61,14 @@
                 <form id="exam-form">
                     <input type="hidden" id="exam-id">
                     <input type="hidden" id="edit-date-idx">
+
+                    <div class="form-group smart-entry-group">
+                        <label for="smart-schedule-input">文章から自動入力</label>
+                        <textarea id="smart-schedule-input" rows="3" placeholder="例: FP2級を2026年9月13日に受験。申込は7月1日から8月1日まで。10時開始。"></textarea>
+                        <button type="button" id="btn-parse-schedule" class="btn btn-secondary smart-entry-btn">
+                            <i class="fas fa-wand-magic-sparkles"></i> 読み取り
+                        </button>
+                    </div>
                     
                     <div class="form-group">
                         <label for="exam-name">資格試験名 <span class="required">*</span></label>
