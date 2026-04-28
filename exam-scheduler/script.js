@@ -292,7 +292,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderMiniCal(){
         if(!miniCalEl) return; miniCalEl.innerHTML='';
         const dw=['日','月','火','水','木','金','土'];
-        [4,5,6,7,8,9,10,11,12,1,2,3].forEach(m=>{
+        const palette = [
+            { bg: '#818CF8', shadow: 'rgba(129,140,248,0.4)', light: 'rgba(129,140,248,0.18)', text: '#818CF8' },
+            { bg: '#FB923C', shadow: 'rgba(251,146,60,0.4)',  light: 'rgba(251,146,60,0.18)',  text: '#FB923C' },
+            { bg: '#34D399', shadow: 'rgba(52,211,153,0.4)',  light: 'rgba(52,211,153,0.18)',  text: '#34D399' },
+            { bg: '#F472B6', shadow: 'rgba(244,114,182,0.4)', light: 'rgba(244,114,182,0.18)', text: '#F472B6' },
+            { bg: '#60A5FA', shadow: 'rgba(96,165,250,0.4)',  light: 'rgba(96,165,250,0.18)',  text: '#60A5FA' },
+            { bg: '#FBBF24', shadow: 'rgba(251,191,36,0.4)',  light: 'rgba(251,191,36,0.18)',  text: '#FBBF24' },
+            { bg: '#A78BFA', shadow: 'rgba(167,139,250,0.4)', light: 'rgba(167,139,250,0.18)', text: '#A78BFA' },
+            { bg: '#2DD4BF', shadow: 'rgba(45,212,191,0.4)',  light: 'rgba(45,212,191,0.18)',  text: '#2DD4BF' },
+        ];
+        const setColorMap = new Map();
+        let colorIdx = 0;
+        exams.forEach(ex => {
+            const ds = ex.examDates || (ex.examDate ? [{date:ex.examDate,time:ex.examTime,status:ex.status}] : []);
+            ds.forEach((ed, i) => {
+                setColorMap.set(ex.id + '-' + i, colorIdx % palette.length);
+                colorIdx++;
+            });
+        });
+        [4,5,6,7,8,9,10,11,12,1,2,3].forEach((m,mIdx)=>{
             const yr=m>=4?currentFiscalYear:currentFiscalYear+1;
             const mm=document.createElement('div'); mm.className='mini-month';
             const hdr=dw.map((d,i)=>`<div class="${i===0?'day-sunday':i===6?'day-saturday':''}">${d}</div>`).join('');
@@ -304,42 +323,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 let cls=['mini-day'], dow=new Date(yr,m-1,d).getDay();
                 let hName = getHolidayName(yr, m, d);
                 if(dow===0||hName) cls.push('day-sunday'); else if(dow===6) cls.push('day-saturday');
-                let examType=null, applyType=null, applyEndType=null, applyPeriodType=null, evs=[], fid=null;
-                
-                const cellDateStr = `${yr}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                const currDate = new Date(yr, m-1, d);
-                
+                let evs=[], fid=null, cellStyles=[];
                 exams.forEach(ex=>{
                     const ds=ex.examDates||(ex.examDate?[{date:ex.examDate,time:ex.examTime,status:ex.status}]:[]);
                     const added=new Set();
-                    ds.forEach(ed=>{
+                    ds.forEach((ed, edIdx)=>{
                         let st = ed.status || ex.status || 'planning';
+                        const ci = setColorMap.get(ex.id + '-' + edIdx);
+                        const color = palette[ci];
+                        const isApplied = (st==='applied'||st==='studying'||st==='finished');
                         if(ed.date){
                             const dt=new Date(ed.date);
                             if(dt.getFullYear()===yr&&dt.getMonth()+1===m&&dt.getDate()===d){
                                 if(!fid)fid=ex.id;
-                                if(st === 'finished') examType = 'finished';
-                                else if(examType !== 'active') examType = 'active';
                                 const df=Math.ceil((dt-today)/864e5);
                                 const tStr = ed.time ? ` (${ed.time})` : '';
-                                evs.push({type:'exam',name:ex.name + tStr,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了', exId: ex.id, edDate: ed.date});
+                                evs.push({type:'exam',name:ex.name+tStr,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color});
+                                cellStyles.push({color,isFinished:st==='finished',priority:3});
                             }
                         }
                         const as=ed.applyStart!==undefined?ed.applyStart:ex.applyStart;
                         if(as){
                             const dt=new Date(as);
                             if(dt.getFullYear()===yr&&dt.getMonth()+1===m&&dt.getDate()===d){
-                                const k=as+ex.name+'-start';
+                                const k=as+ex.name+'-start-'+edIdx;
                                 if(!added.has(k)){
                                     added.add(k);if(!fid)fid=ex.id;
-                                    const isApplied = (st==='applied' || st==='studying' || st==='finished');
-                                    if(isApplied) {
-                                        if(applyType !== 'active') applyType = 'finished';
-                                    } else {
-                                        applyType = 'active';
-                                    }
                                     const df=Math.ceil((dt-today)/864e5);
-                                    evs.push({type:'apply',name:'申込開始: '+ex.name,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了', exId: ex.id, edDate: ed.date});
+                                    evs.push({type:'apply',name:'申込開始: '+ex.name,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color});
+                                    cellStyles.push({color,isFinished:true,priority:1});
                                 }
                             }
                         }
@@ -347,47 +359,51 @@ document.addEventListener('DOMContentLoaded', () => {
                         if(ae){
                             const dt=new Date(ae);
                             if(dt.getFullYear()===yr&&dt.getMonth()+1===m&&dt.getDate()===d){
-                                const k=ae+ex.name+'-end';
+                                const k=ae+ex.name+'-end-'+edIdx;
                                 if(!added.has(k)){
                                     added.add(k);if(!fid)fid=ex.id;
-                                    const isApplied = (st==='applied' || st==='studying' || st==='finished');
-                                    if(isApplied) {
-                                        if(applyEndType !== 'active') applyEndType = 'finished';
-                                    } else {
-                                        applyEndType = 'active';
-                                    }
                                     const df=Math.ceil((dt-today)/864e5);
-                                    evs.push({type:'apply-end',name:'申込締切: '+ex.name,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了', exId: ex.id, edDate: ed.date});
+                                    evs.push({type:'apply-end',name:'申込締切: '+ex.name,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color});
+                                    cellStyles.push({color,isFinished:true,priority:2});
                                 }
                             }
                         }
                     });
                 });
-                let tip='';
-                let tipContent = '';
-                if(today.getFullYear()===yr&&today.getMonth()+1===m&&today.getDate()===d) {
-                    tipContent += `<div class="tooltip-event" style="margin-bottom: 4px;"><i class="fas fa-star" style="color:var(--primary-color); margin-right:6px;"></i><span class="tooltip-name" style="font-weight:800;">本日 ${m}月${d}日</span></div>`;
+                let inlineStyle='';
+                if(cellStyles.length>0){
+                    cellStyles.sort((a,b)=>b.priority-a.priority);
+                    const top=cellStyles[0];
+                    if(top.isFinished){
+                        inlineStyle=`background:${top.color.light};color:${top.color.text};border:2px dashed ${top.color.bg};font-weight:800;`;
+                    } else {
+                        inlineStyle=`background:${top.color.bg};color:white;box-shadow:0 2px 8px ${top.color.shadow};`;
+                    }
                 }
-                if(hName) tipContent += `<div class="tooltip-holiday"><i class="fas fa-flag"></i> ${hName}</div>`;
+                let tip='', tipContent='';
+                if(today.getFullYear()===yr&&today.getMonth()+1===m&&today.getDate()===d){
+                    tipContent+=`<div class="tooltip-event" style="margin-bottom:4px;"><i class="fas fa-star" style="color:var(--primary-color);margin-right:6px;"></i><span class="tooltip-name" style="font-weight:800;">本日 ${m}月${d}日</span></div>`;
+                }
+                if(hName) tipContent+=`<div class="tooltip-holiday"><i class="fas fa-flag"></i> ${hName}</div>`;
                 if(evs.length){
-                    evs.forEach(ev => {
-                        tipContent += `<div class="tooltip-event"><span class="tooltip-dot ${ev.type}"></span><span class="tooltip-name">${ev.name}</span><span class="tooltip-days">${ev.diffStr}</span></div>`;
-                        const ex = exams.find(e=>e.id===ev.exId);
-                        if(ex && ex.memos){
-                            ex.memos.forEach(memo => {
-                                if(memo.targetDate === 'all' || memo.targetDate === ev.edDate){
-                                    tipContent += `<div class="tooltip-memo"><i class="fas fa-sticky-note"></i> <span>${memo.text}</span></div>`;
+                    evs.forEach(ev=>{
+                        const dotStyle=`background:${ev.color.bg};box-shadow:0 0 8px ${ev.color.bg};`;
+                        tipContent+=`<div class="tooltip-event"><span class="tooltip-dot" style="${dotStyle}"></span><span class="tooltip-name">${ev.name}</span><span class="tooltip-days">${ev.diffStr}</span></div>`;
+                        const ex=exams.find(e=>e.id===ev.exId);
+                        if(ex&&ex.memos){
+                            ex.memos.forEach(memo=>{
+                                if(memo.targetDate==='all'||memo.targetDate===ev.edDate){
+                                    tipContent+=`<div class="tooltip-memo"><i class="fas fa-sticky-note"></i> <span>${memo.text}</span></div>`;
                                 }
                             });
                         }
                     });
                 }
                 if(tipContent) tip=`<div class="modern-tooltip">${tipContent}</div>`;
-                
                 if(today.getFullYear()===yr&&today.getMonth()+1===m&&today.getDate()===d) cls.push('is-today');
-                if(examType&&applyType) cls.push('has-both'); else if(examType==='active') cls.push('has-exam'); else if(examType==='finished') cls.push('has-exam-finished'); else if(applyEndType==='active') cls.push('has-apply-end'); else if(applyEndType==='finished') cls.push('has-apply-end-finished'); else if(applyType==='active') cls.push('has-apply'); else if(applyType==='finished') cls.push('has-apply-finished'); else if(applyPeriodType==='active') cls.push('has-apply-period'); else if(applyPeriodType==='finished') cls.push('has-apply-period-finished');
                 let oc=''; if(fid){cls.push('clickable');oc=`onclick="scrollToExam('${fid}')"`;}
-                grid+=`<div class="${cls.join(' ')}" ${oc}>${d}${tip}</div>`;
+                if(mIdx<4) cls.push('tooltip-below');
+                grid+=`<div class="${cls.join(' ')}" style="${inlineStyle}" ${oc}>${d}${tip}</div>`;
             }
             mm.innerHTML=`<div class="mini-month-name">${m}月</div><div class="mini-days-header">${hdr}</div><div class="mini-days-grid">${grid}</div>`;
             miniCalEl.appendChild(mm);

@@ -209,11 +209,14 @@ body {
 
 /* Today indicator */
 .mini-day.is-today { 
-    border: 2px solid var(--primary-color); font-weight: 900; 
+    border-radius: 6px !important;
+    border: 2.5px solid #E11D48 !important;
+    font-weight: 900;
+    box-shadow: 0 0 0 1.5px rgba(225, 29, 72, 0.25) !important;
 }
-.mini-day.is-today:not(.has-exam):not(.has-apply):not(.has-both) {
-    color: var(--primary-color);
-    background: white;
+.mini-day.is-today:not([style*="background"]) {
+    color: #E11D48;
+    background: rgba(225, 29, 72, 0.08);
 }
 
 /* Modern Glass Tooltip */
@@ -233,6 +236,17 @@ body {
     border-top-color: rgba(17, 24, 39, 0.85);
 }
 .mini-day:hover .modern-tooltip { display: block; animation: tooltipFadeIn 0.2s ease forwards; }
+/* Tooltip below (for top-row months to avoid header overlap) */
+.tooltip-below .modern-tooltip {
+    bottom: auto; top: calc(100% + 12px);
+    transform: translateX(-50%) scale(0.8);
+    transform-origin: top center;
+}
+.tooltip-below .modern-tooltip::after {
+    top: auto; bottom: 100%;
+    border-top-color: transparent;
+    border-bottom-color: rgba(17, 24, 39, 0.85);
+}
 .tooltip-event { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; font-size: 0.85rem; }
 .tooltip-event + .tooltip-event, .tooltip-memo + .tooltip-event { border-top: 1px solid rgba(255,255,255,0.1); }
 .tooltip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
