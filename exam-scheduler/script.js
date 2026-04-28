@@ -396,14 +396,14 @@ document.addEventListener('DOMContentLoaded', () => {
             : '<div class="next-exam-memo is-empty"><i class="far fa-note-sticky"></i><span>メモなし</span></div>';
         nextExamPop.classList.remove('hidden');
         nextExamPop.innerHTML = `
-            <div class="next-exam-left">
+            <button class="next-exam-left" type="button" onclick="scrollToCalendarDate('${next.dateInfo.date}')">
                 <div class="next-exam-icon"><i class="fas fa-hourglass-half"></i></div>
                 <div class="next-exam-main">
                     <span class="next-exam-label">直近の試験</span>
                     <strong>${next.ex.name}</strong>
                     <span>${dateText}</span>
                 </div>
-            </div>
+            </button>
             <div class="next-exam-notes">
                 ${memoHtml}
             </div>
@@ -517,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function restoreApplyRangeCells(){
         applyRangeHighlightedCells.forEach(({cell, style})=>{
             cell.setAttribute('style', style);
+            cell.classList.remove('calendar-hover-blink');
         });
         applyRangeHighlightedCells = [];
     }
@@ -530,6 +531,11 @@ document.addEventListener('DOMContentLoaded', () => {
         cell.style.border = `2px dashed ${range.color.bg}`;
         cell.style.boxShadow = 'none';
         cell.style.fontWeight = '800';
+        cell.style.setProperty('--hover-blink-bg', range.color.light);
+        cell.style.setProperty('--hover-blink-color', range.color.text);
+        cell.style.setProperty('--hover-blink-border', `2px dashed ${range.color.bg}`);
+        cell.style.setProperty('--hover-blink-shadow', 'none');
+        cell.classList.add('calendar-hover-blink');
     }
 
     function showApplyRangeLines(rangeIds, applyRanges){
@@ -543,20 +549,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const endCell = miniCalEl.querySelector(`[data-calendar-date="${range.end}"][data-apply-range-ids~="${id}"]`);
             if(startCell) applyRangeCellStyle(startCell, range);
             if(endCell) applyRangeCellStyle(endCell, range);
-            const cells = getApplyRangeCells(range);
-            if(cells.length < 2) return;
-            buildCalendarPaths(cells, range).filter(Boolean).forEach(pathData=>{
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                path.setAttribute('d', pathData);
-                path.setAttribute('stroke', range.color.bg);
-                path.setAttribute('stroke-width', '4');
-                path.setAttribute('stroke-linecap', 'round');
-                path.setAttribute('stroke-linejoin', 'round');
-                path.setAttribute('stroke-dasharray', '7 7');
-                path.setAttribute('fill', 'none');
-                path.classList.add('apply-range-line');
-                overlay.appendChild(path);
-            });
         });
         overlay.classList.toggle('hidden', !overlay.childElementCount);
     }
@@ -703,7 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let cls=['mini-day'], dow=cellDate.getDay();
                 let hName = getHolidayName(yr, m, d);
                 if(dow===0||hName) cls.push('day-sunday'); else if(dow===6) cls.push('day-saturday');
-                let evs=[], fid=null, cellStyles=[], applyRangeIds=new Set();
+                let evs=[], fid=null, cellStyles=[], applyRangeIds=new Set(), examHoverIds=new Set();
                 exams.forEach(ex=>{
                     const ds=ex.examDates||(ex.examDate?[{date:ex.examDate,time:ex.examTime,status:ex.status}]:[]);
                     const added=new Set();
@@ -720,6 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const tStr = ed.time ? ` (${ed.time})` : '';
                                 evs.push({type:'exam',name:ex.name+tStr,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color,isFinished:false});
                                 cellStyles.push({color,isFinished:false,priority:3});
+                                examHoverIds.add(ex.id + '-' + edIdx);
                             }
                         }
                         const as=ed.applyStart!==undefined?ed.applyStart:ex.applyStart;
@@ -758,9 +751,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     cellStyles.sort((a,b)=>b.priority-a.priority);
                     const top=cellStyles[0];
                     if(top.isFinished){
-                        inlineStyle=`background:${top.color.light};color:${top.color.text};border:2px dashed ${top.color.bg};font-weight:800;`;
+                        inlineStyle=`background:${top.color.light};color:${top.color.text};border:2px dashed ${top.color.bg};font-weight:800;--hover-blink-bg:${top.color.light};--hover-blink-color:${top.color.text};--hover-blink-border:2px dashed ${top.color.bg};--hover-blink-shadow:none;`;
                     } else {
-                        inlineStyle=`background:${top.color.bg};color:white;box-shadow:0 2px 8px ${top.color.shadow};`;
+                        inlineStyle=`background:${top.color.bg};color:white;box-shadow:0 2px 8px ${top.color.shadow};--hover-blink-bg:${top.color.bg};--hover-blink-color:white;--hover-blink-border:0 solid transparent;--hover-blink-shadow:0 2px 8px ${top.color.shadow};`;
                     }
                 }
                 let tip='', tipContent='';
@@ -790,10 +783,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const eventExamIds = [...new Set(evs.map(ev=>ev.exId))];
                 let oc=''; if(eventExamIds.length){cls.push('clickable');oc=`onclick="scrollToExam('${eventExamIds[0]}', '${cellDateValue}', '${eventExamIds.join(',')}')"`;}
                 if(tipContent) cls.push('has-tooltip');
-                if(mIdx<4) cls.push('tooltip-below');
                 const eventBadge = evs.length >= 2 ? `<span class="mini-event-badge">${evs.length}</span>` : '';
                 const rangeAttr = applyRangeIds.size ? ` data-apply-range-ids="${[...applyRangeIds].join(' ')}"` : '';
-                grid+=`<div class="${cls.join(' ')}" data-calendar-date="${cellDateValue}"${rangeAttr} style="${inlineStyle}" ${oc}><span class="mini-day-number">${d}</span>${eventBadge}${tip}</div>`;
+                const examHoverAttr = examHoverIds.size ? ` data-exam-hover-ids="${[...examHoverIds].join(' ')}"` : '';
+                grid+=`<div class="${cls.join(' ')}" data-calendar-date="${cellDateValue}"${rangeAttr}${examHoverAttr} style="${inlineStyle}" ${oc}><span class="calendar-hover-surface"></span><span class="mini-day-number">${d}</span>${eventBadge}${tip}</div>`;
             }
             mm.innerHTML=`<div class="mini-month-name">${m}月</div><div class="mini-days-header">${hdr}</div><div class="mini-days-grid">${grid}</div>`;
             miniCalEl.appendChild(mm);

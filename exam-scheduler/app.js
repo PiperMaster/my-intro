@@ -101,9 +101,33 @@ window.scrollToExam = (id, date=null, targetIds='') => {
             row.classList.remove('date-highlight-pulse');
             void row.offsetWidth;
             row.classList.add('date-highlight-pulse');
-            setTimeout(()=>row.classList.remove('date-highlight-pulse'),2400);
+            setTimeout(()=>row.classList.remove('date-highlight-pulse'),1600);
         });
     });
+};
+
+function slowScrollToElement(el, duration=2600) {
+    const start = window.scrollY;
+    const target = start + el.getBoundingClientRect().top - (window.innerHeight / 2) + (el.offsetHeight / 2);
+    const change = target - start;
+    const startTime = performance.now();
+    const easeInOutCubic = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+    function step(now){
+        const progress = Math.min((now - startTime) / duration, 1);
+        window.scrollTo(0, start + change * easeInOutCubic(progress));
+        if(progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
+window.scrollToCalendarDate = (date) => {
+    const cell = document.querySelector(`[data-calendar-date="${date}"]`);
+    if(!cell) return;
+    slowScrollToElement(cell, 2130);
+    cell.classList.remove('calendar-date-highlight-pulse');
+    void cell.offsetWidth;
+    cell.classList.add('calendar-date-highlight-pulse');
+    setTimeout(()=>cell.classList.remove('calendar-date-highlight-pulse'),2000);
 };
 
 window.switchCardTab = (eid, tab) => {
