@@ -188,9 +188,12 @@ body {
     color: var(--text-primary); transition: all 0.2s;
 }
 .mini-day.empty { visibility: hidden; }
-.mini-day.is-past {
+.mini-day.is-past .mini-day-number {
     opacity: 0.38;
     filter: saturate(0.55);
+}
+.mini-day.is-past .modern-tooltip :is(.tooltip-name, .tooltip-days, .tooltip-memo, .tooltip-holiday) {
+    opacity: 0.52;
 }
 .mini-event-badge {
     position: absolute;

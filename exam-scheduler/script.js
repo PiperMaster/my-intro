@@ -557,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let oc=''; if(eventExamIds.length){cls.push('clickable');oc=`onclick="scrollToExam('${eventExamIds[0]}', '${cellDateValue}', '${eventExamIds.join(',')}')"`;}
                 if(mIdx<4) cls.push('tooltip-below');
                 const eventBadge = evs.length >= 2 ? `<span class="mini-event-badge">${evs.length}</span>` : '';
-                grid+=`<div class="${cls.join(' ')}" style="${inlineStyle}" ${oc}>${d}${eventBadge}${tip}</div>`;
+                grid+=`<div class="${cls.join(' ')}" style="${inlineStyle}" ${oc}><span class="mini-day-number">${d}</span>${eventBadge}${tip}</div>`;
             }
             mm.innerHTML=`<div class="mini-month-name">${m}月</div><div class="mini-days-header">${hdr}</div><div class="mini-days-grid">${grid}</div>`;
             miniCalEl.appendChild(mm);
