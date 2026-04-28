@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsModal=$('settings-modal'), miniCalEl=$('mini-calendar');
     const listEl=$('exam-list');
     const fyLabel=$('current-fiscal-year');
+    const nextExamPop=$('next-exam-pop');
     const headerEl=document.querySelector('.header');
 
     // === Scroll Header Logic ===
@@ -362,13 +363,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.autoUpdateStatus = autoUpdateStatus;
     
-    function render(){ autoUpdateStatus(); updateFYLabel(); renderMiniCal(); renderList(); }
+    function render(){ autoUpdateStatus(); updateFYLabel(); renderNextExamPop(); renderMiniCal(); renderList(); }
     window.render = render;
     function updateFYLabel(){ fyLabel.textContent=`${currentFiscalYear}年度 (${currentFiscalYear.toString().slice(-2)}年4月 - ${(currentFiscalYear+1).toString().slice(-2)}年3月)`; }
+
+    function renderNextExamPop(){
+        if(!nextExamPop) return;
+        const today = new Date(); today.setHours(0,0,0,0);
+        const upcoming = [];
+        exams.forEach(ex=>{
+            const ds=ex.examDates||(ex.examDate?[{date:ex.examDate,time:ex.examTime}]:[]);
+            ds.forEach((d,i)=>{
+                if(!d.date) return;
+                const dt = parseDateValue(d.date);
+                dt.setHours(0,0,0,0);
+                if(dt < today) return;
+                upcoming.push({ex, dateInfo:d, dateIndex:i, date:dt, days:Math.ceil((dt-today)/864e5)});
+            });
+        });
+        upcoming.sort((a,b)=>a.date-b.date);
+        const next = upcoming[0];
+        if(!next){
+            nextExamPop.classList.add('hidden');
+            nextExamPop.innerHTML = '';
+            return;
+        }
+        const dayText = next.days === 0 ? '本日' : `あと${next.days}日`;
+        const dateText = `${formatDate(next.dateInfo.date)}${next.dateInfo.time?` (${next.dateInfo.time})`:''}`;
+        const memos = (next.ex.memos||[]).filter(m=>m.targetDate==='all'||m.targetDate===next.dateInfo.date);
+        const memoHtml = memos.length
+            ? memos.slice(0,2).map(m=>`<div class="next-exam-memo"><i class="fas fa-sticky-note"></i><span>${m.text}</span></div>`).join('')
+            : '<div class="next-exam-memo is-empty"><i class="far fa-note-sticky"></i><span>メモなし</span></div>';
+        nextExamPop.classList.remove('hidden');
+        nextExamPop.innerHTML = `
+            <div class="next-exam-left">
+                <div class="next-exam-icon"><i class="fas fa-hourglass-half"></i></div>
+                <div class="next-exam-main">
+                    <span class="next-exam-label">直近の試験</span>
+                    <strong>${next.ex.name}</strong>
+                    <span>${dateText}</span>
+                </div>
+            </div>
+            <div class="next-exam-notes">
+                ${memoHtml}
+            </div>
+            <button class="next-exam-count" type="button" onclick="scrollToExam('${next.ex.id}', '${next.dateInfo.date}', '${next.ex.id}')">${dayText}</button>
+        `;
+    }
 
     let applyRangeOverlay = null;
     let applyRangeHoverTimer = null;
     let applyRangeHighlightedCells = [];
+    let applyRangeHoverToken = 0;
     function getApplyRangeOverlay(){
         if(!applyRangeOverlay){
             applyRangeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -379,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function hideApplyRangeLines(){
+        applyRangeHoverToken++;
         if(applyRangeHoverTimer){
             clearInterval(applyRangeHoverTimer);
             applyRangeHoverTimer = null;
@@ -443,13 +490,25 @@ document.addEventListener('DOMContentLoaded', () => {
             rows.forEach(row=>row.items.sort((a,b)=>a.rect.left-b.rect.left));
             let d = '';
             rows.forEach(row=>{
-                const first = row.items[0];
-                const last = row.items[row.items.length-1];
-                const y = first.rect.top + first.rect.height / 2;
-                const x1 = first.date === range.start && !first.isPlaceholder ? first.rect.right : first.rect.left;
-                const x2 = last.date === range.end && !last.isPlaceholder ? last.rect.left : last.rect.right;
-                d += ` M ${x1} ${y} L ${x2} ${y}`;
-
+                for(let i=0;i<row.items.length-1;i++){
+                    const current = row.items[i];
+                    const next = row.items[i+1];
+                    const y = current.rect.top + current.rect.height / 2;
+                    const x1 = current.rect.right;
+                    const x2 = next.rect.left;
+                    if(x2 <= x1) continue;
+                    const blockers = row.items
+                        .filter(item=>item.cell.dataset.applyRangeIds && !item.isPlaceholder && item.date !== range.start && item.date !== range.end)
+                        .map(item=>({left:item.rect.left, right:item.rect.right}))
+                        .filter(block=>block.right > x1 && block.left < x2)
+                        .sort((a,b)=>a.left-b.left);
+                    let cursor = x1;
+                    blockers.forEach(block=>{
+                        if(block.left > cursor) d += ` M ${cursor} ${y} L ${block.left} ${y}`;
+                        cursor = Math.max(cursor, block.right);
+                    });
+                    if(x2 > cursor) d += ` M ${cursor} ${y} L ${x2} ${y}`;
+                }
             });
             return d;
         });
@@ -490,10 +549,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 path.setAttribute('d', pathData);
                 path.setAttribute('stroke', range.color.bg);
-                path.setAttribute('stroke-width', '2');
+                path.setAttribute('stroke-width', '4');
                 path.setAttribute('stroke-linecap', 'round');
                 path.setAttribute('stroke-linejoin', 'round');
-                path.setAttribute('stroke-dasharray', '4 5');
+                path.setAttribute('stroke-dasharray', '7 7');
                 path.setAttribute('fill', 'none');
                 path.classList.add('apply-range-line');
                 overlay.appendChild(path);
@@ -507,12 +566,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const getIds = () => cell.dataset.applyRangeIds.split(' ').filter(Boolean);
             cell.addEventListener('mouseenter', () => {
                 hideApplyRangeLines();
+                const token = ++applyRangeHoverToken;
                 const ids = getIds();
                 let index = 0;
-                const showCurrent = () => showApplyRangeLines([ids[index]], applyRanges);
+                const showCurrent = () => {
+                    if(token !== applyRangeHoverToken) return;
+                    showApplyRangeLines([ids[index]], applyRanges);
+                };
                 requestAnimationFrame(showCurrent);
                 if(ids.length > 1){
                     applyRangeHoverTimer = setInterval(()=>{
+                        if(token !== applyRangeHoverToken) return;
                         index = (index + 1) % ids.length;
                         showCurrent();
                     }, 1000);
@@ -596,6 +660,14 @@ document.addEventListener('DOMContentLoaded', () => {
             { bg: '#FBBF24', shadow: 'rgba(251,191,36,0.4)',  light: 'rgba(251,191,36,0.18)',  text: '#FBBF24' },
             { bg: '#A78BFA', shadow: 'rgba(167,139,250,0.4)', light: 'rgba(167,139,250,0.18)', text: '#A78BFA' },
             { bg: '#2DD4BF', shadow: 'rgba(45,212,191,0.4)',  light: 'rgba(45,212,191,0.18)',  text: '#2DD4BF' },
+            { bg: '#F87171', shadow: 'rgba(248,113,113,0.4)', light: 'rgba(248,113,113,0.18)', text: '#F87171' },
+            { bg: '#22D3EE', shadow: 'rgba(34,211,238,0.4)',  light: 'rgba(34,211,238,0.18)',  text: '#0891B2' },
+            { bg: '#A3E635', shadow: 'rgba(163,230,53,0.4)',  light: 'rgba(163,230,53,0.18)',  text: '#65A30D' },
+            { bg: '#E879F9', shadow: 'rgba(232,121,249,0.4)', light: 'rgba(232,121,249,0.18)', text: '#C026D3' },
+            { bg: '#38BDF8', shadow: 'rgba(56,189,248,0.4)',  light: 'rgba(56,189,248,0.18)',  text: '#0284C7' },
+            { bg: '#FACC15', shadow: 'rgba(250,204,21,0.4)',  light: 'rgba(250,204,21,0.18)',  text: '#CA8A04' },
+            { bg: '#C084FC', shadow: 'rgba(192,132,252,0.4)', light: 'rgba(192,132,252,0.18)', text: '#9333EA' },
+            { bg: '#4ADE80', shadow: 'rgba(74,222,128,0.4)',  light: 'rgba(74,222,128,0.18)',  text: '#16A34A' },
         ];
         const setColorMap = new Map();
         const applyRanges = new Map();
@@ -717,6 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cellDateValue = toDateValue(yr, m, d);
                 const eventExamIds = [...new Set(evs.map(ev=>ev.exId))];
                 let oc=''; if(eventExamIds.length){cls.push('clickable');oc=`onclick="scrollToExam('${eventExamIds[0]}', '${cellDateValue}', '${eventExamIds.join(',')}')"`;}
+                if(tipContent) cls.push('has-tooltip');
                 if(mIdx<4) cls.push('tooltip-below');
                 const eventBadge = evs.length >= 2 ? `<span class="mini-event-badge">${evs.length}</span>` : '';
                 const rangeAttr = applyRangeIds.size ? ` data-apply-range-ids="${[...applyRangeIds].join(' ')}"` : '';
