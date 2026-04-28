@@ -20,8 +20,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // === Date Row ===
     function lockPageScroll(){ document.body.classList.add('modal-open'); }
     function unlockPageScroll(){ document.body.classList.remove('modal-open'); }
+    function normalizeStatus(status){
+        return ['planning','applying','applied'].includes(status) ? status : 'planning';
+    }
 
     function createDateRow(dv='',tv='',as='',ae='',st='planning',first=false){
+        st = normalizeStatus(st);
         const w=document.createElement('div'); w.className='date-row-wrapper';
         w.innerHTML=`${!first?'<button type="button" class="btn-remove-date" title="削除"><i class="fas fa-times"></i></button>':''}
         <div class="form-row" style="margin-bottom:0.5rem">
@@ -281,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const newFormDates=[]; dc.querySelectorAll('.date-row-wrapper').forEach(w=>{
             const dv=w.querySelector('.ed-inp').value;
-            if(dv) newFormDates.push({date:dv,time:w.querySelector('.et-inp').value,applyStart:w.querySelector('.as-inp').value,applyEnd:w.querySelector('.ae-inp').value,status:w.querySelector('.es-inp').value});
+            if(dv) newFormDates.push({date:dv,time:w.querySelector('.et-inp').value,applyStart:w.querySelector('.as-inp').value,applyEnd:w.querySelector('.ae-inp').value,status:normalizeStatus(w.querySelector('.es-inp').value)});
         });
         
         const old=exams.find(o=>o.id===id);
@@ -317,8 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const ex = exams.find(e=>e.id===eid);
         if(!ex || !ex.examDates || !ex.examDates[dateIdx]) return;
         const d = ex.examDates[dateIdx];
-        const statuses = ['planning', 'applying', 'applied', 'studying', 'finished'];
-        const currentIdx = statuses.indexOf(d.status || ex.status || 'planning');
+        const statuses = ['planning', 'applying', 'applied'];
+        const currentIdx = statuses.indexOf(normalizeStatus(d.status || ex.status || 'planning'));
         const nextIdx = (currentIdx + 1) % statuses.length;
         d.status = statuses[nextIdx];
         saveExams(); render();
@@ -354,27 +358,169 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === Render ===
     function autoUpdateStatus() {
-        let changed = false;
-        const today = new Date(); today.setHours(0,0,0,0);
-        exams.forEach(ex => {
-            const ds = ex.examDates || [];
-            ds.forEach(d => {
-                if(d.date){
-                    const dt = new Date(d.date);
-                    if(dt < today && d.status !== 'finished'){
-                        d.status = 'finished';
-                        changed = true;
-                    }
-                }
-            });
-        });
-        if(changed) saveExams();
+        return;
     }
     window.autoUpdateStatus = autoUpdateStatus;
     
     function render(){ autoUpdateStatus(); updateFYLabel(); renderMiniCal(); renderList(); }
     window.render = render;
     function updateFYLabel(){ fyLabel.textContent=`${currentFiscalYear}年度 (${currentFiscalYear.toString().slice(-2)}年4月 - ${(currentFiscalYear+1).toString().slice(-2)}年3月)`; }
+
+    let applyRangeOverlay = null;
+    let applyRangeHoverTimer = null;
+    let applyRangeHighlightedCells = [];
+    function getApplyRangeOverlay(){
+        if(!applyRangeOverlay){
+            applyRangeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            applyRangeOverlay.classList.add('apply-range-overlay', 'hidden');
+            document.body.appendChild(applyRangeOverlay);
+        }
+        return applyRangeOverlay;
+    }
+
+    function hideApplyRangeLines(){
+        if(applyRangeHoverTimer){
+            clearInterval(applyRangeHoverTimer);
+            applyRangeHoverTimer = null;
+        }
+        restoreApplyRangeCells();
+        const overlay = getApplyRangeOverlay();
+        overlay.innerHTML = '';
+        overlay.classList.add('hidden');
+    }
+
+    function eachDateValue(start, end){
+        const values = [];
+        const cursor = parseDateValue(start);
+        const last = parseDateValue(end);
+        if(cursor > last) return values;
+        while(cursor <= last){
+            values.push(toDateValue(cursor.getFullYear(), cursor.getMonth()+1, cursor.getDate()));
+            cursor.setDate(cursor.getDate()+1);
+        }
+        return values;
+    }
+
+    function getApplyRangeCells(range){
+        const cells = [];
+        eachDateValue(range.start, range.end).forEach(date=>{
+            miniCalEl.querySelectorAll(`[data-calendar-date="${date}"]`).forEach(cell=>{
+                cells.push({date, cell, isPlaceholder:false});
+            });
+        });
+        miniCalEl.querySelectorAll('[data-calendar-line-date]').forEach(cell=>{
+            const date = cell.dataset.calendarLineDate;
+            const monthStart = cell.dataset.calendarLineMonth;
+            const crossesIntoMonth = range.start < monthStart && monthStart <= range.end;
+            if(crossesIntoMonth && range.start <= date && date <= range.end){
+                cells.push({date, cell, isPlaceholder:true});
+            }
+        });
+        return cells;
+    }
+
+    function buildCalendarPaths(cells, range){
+        const monthGroups = [];
+        cells.forEach(item=>{
+            const rect = item.cell.getBoundingClientRect();
+            const monthEl = item.cell.closest('.mini-month');
+            let monthGroup = monthGroups.find(g=>g.monthEl===monthEl);
+            if(!monthGroup){
+                monthGroup = {monthEl, rows:[]};
+                monthGroups.push(monthGroup);
+            }
+            const topKey = Math.round(rect.top);
+            let row = monthGroup.rows.find(g=>Math.abs(g.top-topKey)<3);
+            if(!row){
+                row = {top:topKey, items:[]};
+                monthGroup.rows.push(row);
+            }
+            row.items.push({...item, rect});
+        });
+
+        return monthGroups.map(monthGroup=>{
+            const rows = monthGroup.rows.sort((a,b)=>a.top-b.top);
+            rows.forEach(row=>row.items.sort((a,b)=>a.rect.left-b.rect.left));
+            let d = '';
+            rows.forEach(row=>{
+                const first = row.items[0];
+                const last = row.items[row.items.length-1];
+                const y = first.rect.top + first.rect.height / 2;
+                const x1 = first.date === range.start && !first.isPlaceholder ? first.rect.right : first.rect.left;
+                const x2 = last.date === range.end && !last.isPlaceholder ? last.rect.left : last.rect.right;
+                d += ` M ${x1} ${y} L ${x2} ${y}`;
+
+            });
+            return d;
+        });
+    }
+
+    function restoreApplyRangeCells(){
+        applyRangeHighlightedCells.forEach(({cell, style})=>{
+            cell.setAttribute('style', style);
+        });
+        applyRangeHighlightedCells = [];
+    }
+
+    function applyRangeCellStyle(cell, range){
+        if(!applyRangeHighlightedCells.some(item=>item.cell===cell)){
+            applyRangeHighlightedCells.push({cell, style:cell.getAttribute('style') || ''});
+        }
+        cell.style.background = range.color.light;
+        cell.style.color = range.color.text;
+        cell.style.border = `2px dashed ${range.color.bg}`;
+        cell.style.boxShadow = 'none';
+        cell.style.fontWeight = '800';
+    }
+
+    function showApplyRangeLines(rangeIds, applyRanges){
+        const overlay = getApplyRangeOverlay();
+        overlay.innerHTML = '';
+        restoreApplyRangeCells();
+        rangeIds.forEach(id=>{
+            const range = applyRanges.get(id);
+            if(!range) return;
+            const startCell = miniCalEl.querySelector(`[data-calendar-date="${range.start}"][data-apply-range-ids~="${id}"]`);
+            const endCell = miniCalEl.querySelector(`[data-calendar-date="${range.end}"][data-apply-range-ids~="${id}"]`);
+            if(startCell) applyRangeCellStyle(startCell, range);
+            if(endCell) applyRangeCellStyle(endCell, range);
+            const cells = getApplyRangeCells(range);
+            if(cells.length < 2) return;
+            buildCalendarPaths(cells, range).filter(Boolean).forEach(pathData=>{
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('stroke', range.color.bg);
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('stroke-linecap', 'round');
+                path.setAttribute('stroke-linejoin', 'round');
+                path.setAttribute('stroke-dasharray', '4 5');
+                path.setAttribute('fill', 'none');
+                path.classList.add('apply-range-line');
+                overlay.appendChild(path);
+            });
+        });
+        overlay.classList.toggle('hidden', !overlay.childElementCount);
+    }
+
+    function bindApplyRangeHover(applyRanges){
+        miniCalEl.querySelectorAll('[data-apply-range-ids]').forEach(cell=>{
+            const getIds = () => cell.dataset.applyRangeIds.split(' ').filter(Boolean);
+            cell.addEventListener('mouseenter', () => {
+                hideApplyRangeLines();
+                const ids = getIds();
+                let index = 0;
+                const showCurrent = () => showApplyRangeLines([ids[index]], applyRanges);
+                requestAnimationFrame(showCurrent);
+                if(ids.length > 1){
+                    applyRangeHoverTimer = setInterval(()=>{
+                        index = (index + 1) % ids.length;
+                        showCurrent();
+                    }, 1000);
+                }
+            });
+            cell.addEventListener('mouseleave', hideApplyRangeLines);
+        });
+    }
 
     function renderList(){
         listEl.innerHTML='';
@@ -387,7 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sorted.forEach(ex=>{
             const ds=ex.examDates||(ex.examDate?[{date:ex.examDate,time:ex.examTime,status:ex.status}]:[]);
             const dHtml=ds.length?ds.map((d, i)=>{
-                const st=getStatusInfo(d.status||ex.status||'planning');
+                const st=getStatusInfo(normalizeStatus(d.status||ex.status||'planning'));
                 const as=d.applyStart!==undefined?d.applyStart:ex.applyStart, ae=d.applyEnd!==undefined?d.applyEnd:ex.applyEnd;
                 let ap=''; if(as||ae) ap=`<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.4rem"><i class="fas fa-edit" style="width:12px;margin-right:4px"></i>申込: ${as?formatDate(as):''} 〜 ${ae?formatDate(ae):''}</div>`;
                 return `<div class="exam-date-item" data-exam-id="${ex.id}" data-exam-date="${d.date}" data-apply-start="${as||''}" data-apply-end="${ae||''}" style="margin-bottom:1rem; padding:0.55rem 0.55rem 0.8rem; border-bottom:1px solid var(--border-light); border-radius:10px;">
@@ -438,6 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderMiniCal(){
+        if(applyRangeOverlay) hideApplyRangeLines();
         if(!miniCalEl) return; miniCalEl.innerHTML='';
         const dw=['日','月','火','水','木','金','土'];
         const palette = [
@@ -451,11 +598,18 @@ document.addEventListener('DOMContentLoaded', () => {
             { bg: '#2DD4BF', shadow: 'rgba(45,212,191,0.4)',  light: 'rgba(45,212,191,0.18)',  text: '#2DD4BF' },
         ];
         const setColorMap = new Map();
+        const applyRanges = new Map();
         let colorIdx = 0;
         exams.forEach(ex => {
             const ds = ex.examDates || (ex.examDate ? [{date:ex.examDate,time:ex.examTime,status:ex.status}] : []);
             ds.forEach((ed, i) => {
                 setColorMap.set(ex.id + '-' + i, colorIdx % palette.length);
+                const as=ed.applyStart!==undefined?ed.applyStart:ex.applyStart;
+                const ae=ed.applyEnd!==undefined?ed.applyEnd:ex.applyEnd;
+                if(as && ae){
+                    const color = palette[colorIdx % palette.length];
+                    applyRanges.set(ex.id + '-' + i, {start:as, end:ae, color});
+                }
                 colorIdx++;
             });
         });
@@ -465,33 +619,40 @@ document.addEventListener('DOMContentLoaded', () => {
             const hdr=dw.map((d,i)=>`<div class="${i===0?'day-sunday':i===6?'day-saturday':''}">${d}</div>`).join('');
             const fd=new Date(yr,m-1,1).getDay(), dim=new Date(yr,m,0).getDate();
             let grid='';
-            for(let i=0;i<fd;i++) grid+='<div class="mini-day empty"></div>';
+            const monthStartValue = toDateValue(yr, m, 1);
+            for(let i=0;i<fd;i++){
+                const lineDate = new Date(yr, m-1, i-fd+1);
+                const lineDateValue = toDateValue(lineDate.getFullYear(), lineDate.getMonth()+1, lineDate.getDate());
+                grid+=`<div class="mini-day empty" data-calendar-line-date="${lineDateValue}" data-calendar-line-month="${monthStartValue}"></div>`;
+            }
             const today=new Date(); today.setHours(0,0,0,0);
             for(let d=1;d<=dim;d++){
                 const cellDate = new Date(yr,m-1,d);
                 let cls=['mini-day'], dow=cellDate.getDay();
                 let hName = getHolidayName(yr, m, d);
                 if(dow===0||hName) cls.push('day-sunday'); else if(dow===6) cls.push('day-saturday');
-                let evs=[], fid=null, cellStyles=[];
+                let evs=[], fid=null, cellStyles=[], applyRangeIds=new Set();
                 exams.forEach(ex=>{
                     const ds=ex.examDates||(ex.examDate?[{date:ex.examDate,time:ex.examTime,status:ex.status}]:[]);
                     const added=new Set();
                     ds.forEach((ed, edIdx)=>{
-                        let st = ed.status || ex.status || 'planning';
+                        let st = normalizeStatus(ed.status || ex.status || 'planning');
                         const ci = setColorMap.get(ex.id + '-' + edIdx);
                         const color = palette[ci];
-                        const isApplied = (st==='applied'||st==='studying'||st==='finished');
+                        const isApplied = st==='applied';
                         if(ed.date){
                             const dt=new Date(ed.date);
                             if(dt.getFullYear()===yr&&dt.getMonth()+1===m&&dt.getDate()===d){
                                 if(!fid)fid=ex.id;
                                 const df=Math.ceil((dt-today)/864e5);
                                 const tStr = ed.time ? ` (${ed.time})` : '';
-                                evs.push({type:'exam',name:ex.name+tStr,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color});
-                                cellStyles.push({color,isFinished:st==='finished',priority:3});
+                                evs.push({type:'exam',name:ex.name+tStr,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color,isFinished:false});
+                                cellStyles.push({color,isFinished:false,priority:3});
                             }
                         }
                         const as=ed.applyStart!==undefined?ed.applyStart:ex.applyStart;
+                        const ae=ed.applyEnd!==undefined?ed.applyEnd:ex.applyEnd;
+                        const applyRangeId = ex.id + '-' + edIdx;
                         if(as){
                             const dt=new Date(as);
                             if(dt.getFullYear()===yr&&dt.getMonth()+1===m&&dt.getDate()===d){
@@ -499,12 +660,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if(!added.has(k)){
                                     added.add(k);if(!fid)fid=ex.id;
                                     const df=Math.ceil((dt-today)/864e5);
-                                    evs.push({type:'apply',name:'申込開始: '+ex.name,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color});
+                                    evs.push({type:'apply',name:'申込開始: '+ex.name,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color,isFinished:true});
                                     cellStyles.push({color,isFinished:true,priority:1});
+                                    if(ae) applyRangeIds.add(applyRangeId);
                                 }
                             }
                         }
-                        const ae=ed.applyEnd!==undefined?ed.applyEnd:ex.applyEnd;
                         if(ae){
                             const dt=new Date(ae);
                             if(dt.getFullYear()===yr&&dt.getMonth()+1===m&&dt.getDate()===d){
@@ -512,8 +673,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if(!added.has(k)){
                                     added.add(k);if(!fid)fid=ex.id;
                                     const df=Math.ceil((dt-today)/864e5);
-                                    evs.push({type:'apply-end',name:'申込締切: '+ex.name,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color});
+                                    evs.push({type:'apply-end',name:'申込締切: '+ex.name,diffStr:df>0?`あと${df}日`:df===0?'本日':'終了',exId:ex.id,edDate:ed.date,color,isFinished:true});
                                     cellStyles.push({color,isFinished:true,priority:2});
+                                    if(as) applyRangeIds.add(applyRangeId);
                                 }
                             }
                         }
@@ -557,11 +719,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 let oc=''; if(eventExamIds.length){cls.push('clickable');oc=`onclick="scrollToExam('${eventExamIds[0]}', '${cellDateValue}', '${eventExamIds.join(',')}')"`;}
                 if(mIdx<4) cls.push('tooltip-below');
                 const eventBadge = evs.length >= 2 ? `<span class="mini-event-badge">${evs.length}</span>` : '';
-                grid+=`<div class="${cls.join(' ')}" style="${inlineStyle}" ${oc}><span class="mini-day-number">${d}</span>${eventBadge}${tip}</div>`;
+                const rangeAttr = applyRangeIds.size ? ` data-apply-range-ids="${[...applyRangeIds].join(' ')}"` : '';
+                grid+=`<div class="${cls.join(' ')}" data-calendar-date="${cellDateValue}"${rangeAttr} style="${inlineStyle}" ${oc}><span class="mini-day-number">${d}</span>${eventBadge}${tip}</div>`;
             }
             mm.innerHTML=`<div class="mini-month-name">${m}月</div><div class="mini-days-header">${hdr}</div><div class="mini-days-grid">${grid}</div>`;
             miniCalEl.appendChild(mm);
         });
+        bindApplyRangeHover(applyRanges);
     }
 
     render();

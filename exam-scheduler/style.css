@@ -185,7 +185,7 @@ body {
 .mini-day {
     aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
     font-size: 0.8rem; font-weight: 700; border-radius: 50%; position: relative; cursor: default;
-    color: var(--text-primary); transition: all 0.2s;
+    color: var(--text-primary); transition: transform 0.2s, color 0.35s, background-color 0.35s, border-color 0.35s, box-shadow 0.35s;
 }
 .mini-day.empty { visibility: hidden; }
 .mini-day.is-past .mini-day-number {
@@ -231,6 +231,22 @@ body {
 
 .mini-day.clickable { cursor: pointer; }
 .mini-day.clickable:hover { transform: scale(1.2) translateY(-2px); z-index: 5; }
+.apply-range-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 4;
+}
+.apply-range-line {
+    animation: applyRangeReveal 0.16s ease-out both;
+    filter: drop-shadow(0 2px 5px rgba(17, 24, 39, 0.22));
+}
+@keyframes applyRangeReveal {
+    from { opacity: 0; stroke-dashoffset: 14; }
+    to { opacity: 1; stroke-dashoffset: 0; }
+}
 
 .mini-day:not(.has-exam):not(.has-apply):not(.has-both).day-sunday { color: var(--danger-color); }
 .mini-day:not(.has-exam):not(.has-apply):not(.has-both).day-saturday { color: var(--primary-color); }
@@ -323,8 +339,6 @@ body {
 .status-planning { background: #f3f4f6; color: #4b5563; }
 .status-applying { background: var(--secondary-light); color: #c2410c; }
 .status-applied { background: var(--primary-light); color: var(--primary-color); }
-.status-studying { background: #d1fae5; color: #047857; }
-.status-finished { background: #f3e8ff; color: #6d28d9; }
 
 .clickable-status { cursor: pointer; transition: all 0.2s; user-select: none; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 .clickable-status:hover { filter: brightness(0.95); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }

@@ -70,7 +70,7 @@ function getHolidayName(y,m,d) { return holidays[`${y}-${String(m).padStart(2,'0
 function isHoliday(y,m,d) { return !!getHolidayName(y,m,d); }
 
 function getStatusInfo(s) {
-    const m = { planning:{label:'検討中',class:'status-planning'}, applying:{label:'申込期間中',class:'status-applying'}, applied:{label:'申込完了',class:'status-applied'}, studying:{label:'勉強中',class:'status-studying'}, finished:{label:'受験完了',class:'status-finished'} };
+    const m = { planning:{label:'検討中',class:'status-planning'}, applying:{label:'申込期間中',class:'status-applying'}, applied:{label:'申込完了',class:'status-applied'} };
     return m[s]||m.planning;
 }
 
