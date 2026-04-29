@@ -51,7 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return String(value ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
     function updateResultInputs(){
-        const type = normalizeResultType($('result-type').value);
+        const resultTypeInput = $('result-type');
+        if(!resultTypeInput) return;
+        const type = normalizeResultType(resultTypeInput.value);
         document.querySelectorAll('.result-type-option').forEach(btn=>{
             btn.classList.toggle('active', btn.dataset.resultType === type);
         });
@@ -62,13 +64,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const w=document.createElement('div'); w.className='date-row-wrapper';
         w.innerHTML=`${!first?'<button type="button" class="btn-remove-date" title="削除"><i class="fas fa-times"></i></button>':''}
         <div class="form-row" style="margin-bottom:0.5rem">
-            <div class="form-group"><label>申込開始日</label><input type="text" class="as-inp custom-date-picker" placeholder="未設定" value="${as}"></div>
-            <div class="form-group"><label>申込終了日</label><input type="text" class="ae-inp custom-date-picker" placeholder="未設定" value="${ae}"></div>
+            <div class="form-group"><label>受験日 <span class="required">*</span></label><input type="text" class="ed-inp custom-date-picker" required placeholder="日付を選択" value="${dv}"></div>
+            <div class="form-group"><label>受験時間</label><input type="text" class="et-inp custom-time-picker" placeholder="未設定" value="${tv}"></div>
         </div>
         <input type="hidden" class="es-inp" value="${st}">
         <div class="form-row">
-            <div class="form-group"><label>受験日 <span class="required">*</span></label><input type="text" class="ed-inp custom-date-picker" required placeholder="日付を選択" value="${dv}"></div>
-            <div class="form-group"><label>受験時間</label><input type="text" class="et-inp custom-time-picker" placeholder="未設定" value="${tv}"></div>
+            <div class="form-group"><label>申込開始日</label><input type="text" class="as-inp custom-date-picker" placeholder="未設定" value="${as}"></div>
+            <div class="form-group"><label>申込終了日</label><input type="text" class="ae-inp custom-date-picker" placeholder="未設定" value="${ae}"></div>
         </div>`;
         if(!first) w.querySelector('.btn-remove-date').onclick=()=>w.remove();
         dc.appendChild(w);
@@ -96,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(ex){
             $('exam-id').value=ex.id;
             $('exam-name').value=ex.name;
-            $('result-type').value=getExamResultType(ex);
             const ds=ex.examDates||(ex.examDate?[{date:ex.examDate,time:ex.examTime,status:ex.status}]:[]);
             
             if (dateIdx === 'new') {
@@ -113,7 +114,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             $('modal-title').textContent='資格試験を追加'; examForm.reset(); $('exam-id').value='';
-            $('result-type').value='passfail';
             createDateRow('','','','','planning',true);
         }
         updateResultInputs();
@@ -129,7 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addDateToExam = (eid) => { openModal(eid, 'new'); };
     document.querySelectorAll('.result-type-option').forEach(btn=>{
         btn.onclick=()=>{
-            $('result-type').value = btn.dataset.resultType;
+            const resultTypeInput = $('result-type');
+            if(!resultTypeInput) return;
+            resultTypeInput.value = btn.dataset.resultType;
             updateResultInputs();
         };
     });
@@ -355,6 +357,13 @@ document.addEventListener('DOMContentLoaded', () => {
             maxScore: current.maxScore
         });
     };
+    window.setExamResultType = (eid, type) => {
+        const ex = exams.find(e=>e.id===eid);
+        if(!ex) return;
+        ex.resultType = normalizeResultType(type);
+        saveExams();
+        render();
+    };
 
 
     // === Form Submit ===
@@ -362,7 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const id=$('exam-id').value||Date.now().toString();
         const dateIdxStr = $('edit-date-idx').value;
-        const resultType = normalizeResultType($('result-type').value);
         
         const newFormDates=[]; dc.querySelectorAll('.date-row-wrapper').forEach(w=>{
             const dv=w.querySelector('.ed-inp').value;
@@ -388,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
             finalDates = newFormDates;
         }
 
-        const ex={id,name:$('exam-name').value,resultType,examDates:finalDates};
+        const ex={id,name:$('exam-name').value,resultType:old ? getExamResultType(old) : 'passfail',examDates:finalDates};
         
         // Preserve or migrate memos
         if(old){
@@ -434,6 +442,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.deleteExam = (id) => {
         exams = exams.filter(e => e.id !== id);
         saveExams(); render();
+    };
+    window.deleteExamDate = (eid, dateIdx, event) => {
+        if(event) event.stopPropagation();
+        const ex = exams.find(e=>e.id===eid);
+        if(!ex || !ex.examDates || !ex.examDates[dateIdx]) return;
+        ex.examDates.splice(dateIdx, 1);
+        saveExams();
+        render();
     };
 
     // === Year Nav ===
@@ -497,7 +513,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!points.length){
             return `<div class="result-chart-empty"><i class="fas fa-chart-line"></i><span>スコアまたは合否を入力すると推移グラフが表示されます。</span></div>`;
         }
-        return '<div id="result-score-chart" class="score-chart score-chart-highcharts"></div>';
+        const dateKeys = [...new Set(points.map(p=>p.dateInfo.date || ''))];
+        const timelineItems = dateKeys.map(dateKey=>{
+            const passFailForDate = points.filter(p=>p.type === 'passfail' && (p.dateInfo.date || '') === dateKey);
+            if(!passFailForDate.length){
+                return `<div class="passfail-timeline-slot is-empty" aria-hidden="true"></div>`;
+            }
+            const items = passFailForDate.map(p=>{
+                const isPass = p.result.outcome === 'pass';
+                const resultText = isPass ? '合格' : '不合格';
+                return `<div class="passfail-timeline-item ${isPass ? 'is-pass' : 'is-fail'}" data-tooltip="${escapeAttr(p.ex.name)}">
+                    <span class="passfail-timeline-dot"><i class="fas ${isPass ? 'fa-check' : 'fa-xmark'}"></i></span>
+                    <span class="passfail-timeline-date">${formatDate(p.dateInfo.date)}</span>
+                    <strong>${resultText}</strong>
+                </div>`;
+            }).join('');
+            return `<div class="passfail-timeline-slot">${items}</div>`;
+        }).join('');
+        return `<div class="score-chart-wrap">
+            <div id="result-score-chart" class="score-chart score-chart-highcharts"></div>
+            ${passFailPoints.length ? `<div class="passfail-timeline" style="--timeline-count:${dateKeys.length}" aria-label="合否タイムライン">${timelineItems}</div>` : ''}
+        </div>`;
     }
     function renderScoreChart(scoreRecords, passFailRecords){
         const chartEl = $('result-score-chart');
@@ -513,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(isNaN(d)) return '';
             return `${d.getMonth()+1}/${d.getDate()}`;
         };
-        const formatResultDateTime = (dateInfo) => `${formatDate(dateInfo.date)}${dateInfo.time ? ` (${dateInfo.time})` : ''}`;
+        const formatResultDate = (dateInfo) => formatDate(dateInfo.date);
         if(!window.Highcharts){
             chartEl.innerHTML = '<div class="result-chart-empty"><i class="fas fa-chart-line"></i><span>グラフライブラリを読み込めませんでした。</span></div>';
             return;
@@ -529,26 +565,8 @@ document.addEventListener('DOMContentLoaded', () => {
             x: dateIndex.get(p.dateInfo.date || ''),
             y: Number(p.result.score),
             name: p.ex.name,
-            custom: { dateTime: formatResultDateTime(p.dateInfo), value: `${p.result.score}点` }
+            custom: { dateTime: formatResultDate(p.dateInfo), value: `${p.result.score}点` }
         }));
-        const passColor = {
-            linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
-            stops: [[0, 'rgba(239, 68, 68, 0)'], [0.5, '#EF4444'], [1, '#EF4444']]
-        };
-        const failColor = {
-            linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
-            stops: [[0, 'rgba(59, 130, 246, 0)'], [0.5, '#3B82F6'], [1, '#3B82F6']]
-        };
-        const passFailData = points.filter(p=>p.type === 'passfail').map(p=>{
-            const isPass = p.result.outcome === 'pass';
-            return {
-                x: dateIndex.get(p.dateInfo.date || ''),
-                y: 1,
-                color: isPass ? passColor : failColor,
-                name: p.ex.name,
-                custom: { dateTime: formatResultDateTime(p.dateInfo), value: isPass ? '合格' : '不合格' }
-            };
-        });
         Highcharts.chart(chartEl, {
             chart: {
                 backgroundColor: 'transparent',
@@ -598,6 +616,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 borderWidth: 0,
                 borderRadius: 8,
                 shadow: false,
+                animation: false,
+                hideDelay: 0,
+                stickOnContact: false,
                 backgroundColor: 'rgba(17, 24, 39, 0.94)',
                 style: { color: '#fff', fontWeight: '700' },
                 formatter: function(){
@@ -622,19 +643,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         fillColor: '#FFFFFF'
                     }
                 },
-                column: {
-                    pointWidth: 24,
-                    borderRadius: '50%',
-                    borderWidth: 0
-                }
+                column: { borderWidth: 0 }
             },
             series: [{
-                type: 'column',
-                yAxis: 1,
-                data: passFailData,
-                color: '#3B82F6',
-                zIndex: 1
-            }, {
                 type: 'line',
                 data: scoreData,
                 color: '#4F46E5',
@@ -670,14 +681,14 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsDashboard.innerHTML = `
             <div class="result-panel">
                 <div class="result-panel-head">
-                    <h3><i class="fas fa-chart-line"></i> スコア推移</h3>
+                    <h3><i class="fas fa-chart-line"></i> 成績推移</h3>
                     <span>${resultChartCount}件</span>
                 </div>
                 ${buildScoreChart(scoreRecords, passFailRecords)}
             </div>
             <div class="result-panel">
                 <div class="result-panel-head">
-                    <h3><i class="fas fa-list-check"></i> 成績記録</h3>
+                    <h3><i class="fas fa-list-check"></i> 記録の入力</h3>
                     <span>${records.length}件</span>
                 </div>
                 <div class="result-record-list">${rows}</div>
@@ -898,21 +909,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderList(){
         listEl.innerHTML='';
+        const today = new Date();
+        today.setHours(0,0,0,0);
         const sorted=[...exams].sort((a,b)=>{
-            const ge=ex=>{const ds=ex.examDates||(ex.examDate?[{date:ex.examDate}]:[]); return ds.length?Math.min(...ds.map(d=>new Date(d.date).getTime())):Infinity;};
+            const ge=ex=>{
+                const ds=ex.examDates||(ex.examDate?[{date:ex.examDate}]:[]);
+                const times=ds
+                    .filter(d=>d.date)
+                    .map(d=>parseDateValue(d.date).setHours(0,0,0,0));
+                const upcoming=times.filter(t=>t>=today.getTime());
+                if(upcoming.length) return Math.min(...upcoming);
+                return Infinity;
+            };
             return ge(a)-ge(b);
         });
         if(!sorted.length){ listEl.innerHTML=`<div class="empty-state"><i class="fas fa-folder-open"></i><p>登録された試験がありません。<br>「新規追加」から登録してください。</p></div>`; return; }
 
         sorted.forEach(ex=>{
             const ds=ex.examDates||(ex.examDate?[{date:ex.examDate,time:ex.examTime,status:ex.status}]:[]);
+            const resultType = getExamResultType(ex);
+            const resultTypeHtml = `<div class="exam-detail-block exam-result-type-block">
+                <div class="exam-result-type-head">
+                    <span><i class="fas fa-chart-simple"></i> 結果の記録方法</span>
+                </div>
+                <div class="result-type-switch card-result-type-switch">
+                    <button type="button" class="result-type-option ${resultType==='passfail'?'active':''}" onclick="setExamResultType('${ex.id}', 'passfail')">合否</button>
+                    <button type="button" class="result-type-option ${resultType==='score'?'active':''}" onclick="setExamResultType('${ex.id}', 'score')">スコア</button>
+                </div>
+            </div>`;
             const dHtml=ds.length?ds.map((d, i)=>{
                 const st=getStatusInfo(normalizeStatus(d.status||ex.status||'planning'));
                 const as=d.applyStart!==undefined?d.applyStart:ex.applyStart, ae=d.applyEnd!==undefined?d.applyEnd:ex.applyEnd;
                 let ap=''; if(as||ae) ap=`<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.4rem"><i class="fas fa-edit" style="width:12px;margin-right:4px"></i>申込: ${as?formatDate(as):''} 〜 ${ae?formatDate(ae):''}</div>`;
                 return `<div class="exam-date-item" data-exam-id="${ex.id}" data-exam-date="${d.date}" data-apply-start="${as||''}" data-apply-end="${ae||''}" style="margin-bottom:1rem; padding:0.55rem 0.55rem 0.8rem; border-bottom:1px solid var(--border-light); border-radius:10px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <strong class="clickable-date" style="color:var(--text-primary)" onclick="editExam('${ex.id}', ${i})" title="クリックして編集">${formatDate(d.date)} ${d.time?`(${d.time})`:''}</strong>
+                        <span class="exam-date-actions">
+                            <strong class="clickable-date" style="color:var(--text-primary)" onclick="editExam('${ex.id}', ${i})" title="クリックして編集">${formatDate(d.date)} ${d.time?`(${d.time})`:''}</strong>
+                            <button type="button" class="date-delete-btn" onclick="deleteExamDate('${ex.id}', ${i}, event)" title="この日程を削除"><i class="fas fa-trash"></i></button>
+                        </span>
                         <span class="exam-status-badge ${st.class} clickable-status" onclick="cycleStatus('${ex.id}', ${i})" title="クリックでステータスを変更">${st.label}</span>
                     </div>
                     ${ap}
@@ -929,13 +963,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="card-tab active" id="tb-${ex.id}-details" onclick="switchCardTab('${ex.id}','details')">詳細</button>
                 <button class="card-tab" id="tb-${ex.id}-memo" onclick="switchCardTab('${ex.id}','memo')">メモ (${memos.length})</button>
             </div>
-            <div class="card-tab-content" id="tc-${ex.id}-details">
+            <div class="card-tab-content exam-details-content" id="tc-${ex.id}-details">
                 <div class="exam-details">
+                    <div class="exam-detail-block">
                     <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom:0.8rem; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
                         <span><i class="far fa-calendar-check"></i> 日程とステータス</span>
                         <button class="btn-action" style="width:24px; height:24px; font-size:0.7rem;" onclick="addDateToExam('${ex.id}')" title="新しい日程を追加"><i class="fas fa-plus"></i></button>
                     </div>
                     ${dHtml}
+                    </div>
+                    ${resultTypeHtml}
                 </div>
             </div>
             <div class="card-tab-content hidden" id="tc-${ex.id}-memo">

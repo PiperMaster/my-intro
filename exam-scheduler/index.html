@@ -35,7 +35,7 @@
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
                     <div class="calendar-heading-row">
                         <h2 class="section-heading" style="margin-bottom: 0;"><i class="far fa-calendar-alt"></i> 年間カレンダー</h2>
-                        <button class="section-tool-btn" id="view-results-btn" type="button"><i class="fas fa-chart-line"></i> 試験結果</button>
+                        <button class="section-tool-btn" id="view-results-btn" type="button"><i class="fas fa-square-poll-vertical"></i> 試験結果</button>
                     </div>
                     <!-- 年度切り替えUI -->
                     <div class="fiscal-year-nav">
@@ -59,7 +59,7 @@
         <main id="results-view" class="hidden">
             <section class="results-section">
                 <div class="results-heading-row">
-                    <h2 class="section-heading"><i class="fas fa-chart-line"></i> 試験結果</h2>
+                    <h2 class="section-heading"><i class="fas fa-square-poll-vertical"></i> 試験結果</h2>
                     <button class="section-tool-btn" id="view-schedule-btn" type="button"><i class="far fa-calendar-alt"></i> カレンダー</button>
                 </div>
                 <div id="results-dashboard"></div>
@@ -91,15 +91,6 @@
                         <label for="exam-name">資格試験名 <span class="required">*</span></label>
                         <input type="text" id="exam-name" required placeholder="例: TOEIC L&R, ITパスポート">
                         <div id="recent-exams-container" style="margin-top: 0.6rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;"></div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="result-type">結果の記録方法</label>
-                        <div class="result-type-switch" id="result-type-switch">
-                            <input type="hidden" id="result-type" value="passfail">
-                            <button type="button" class="result-type-option active" data-result-type="passfail">合否</button>
-                            <button type="button" class="result-type-option" data-result-type="score">スコア</button>
-                        </div>
                     </div>
 
                     <div id="exam-dates-container" class="exam-dates-container">
