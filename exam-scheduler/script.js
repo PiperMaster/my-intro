@@ -3,9 +3,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal=$('exam-modal'), examForm=$('exam-form'), dc=$('exam-dates-container');
     const settingsModal=$('settings-modal'), miniCalEl=$('mini-calendar');
     const listEl=$('exam-list');
+    const resultsDashboard=$('results-dashboard');
+    const scheduleView=$('schedule-view'), resultsView=$('results-view');
+    const scheduleViewBtn=$('view-schedule-btn'), resultsViewBtn=$('view-results-btn');
     const fyLabel=$('current-fiscal-year');
     const nextExamPop=$('next-exam-pop');
     const headerEl=document.querySelector('.header');
+    const MAIN_VIEW_KEY = 'examSchedulerActiveView';
+    let activeView = localStorage.getItem(MAIN_VIEW_KEY) === 'results' ? 'results' : 'schedule';
 
     // === Scroll Header Logic ===
     let lastScrollY = window.scrollY;
@@ -23,6 +28,33 @@ document.addEventListener('DOMContentLoaded', () => {
     function unlockPageScroll(){ document.body.classList.remove('modal-open'); }
     function normalizeStatus(status){
         return ['planning','applying','applied'].includes(status) ? status : 'planning';
+    }
+    function normalizeResultType(type){
+        return ['passfail','score'].includes(type) ? type : 'passfail';
+    }
+    function getExamResultType(ex){
+        return normalizeResultType(ex && ex.resultType);
+    }
+    function normalizeResult(result, type){
+        type = normalizeResultType(type);
+        if(type === 'passfail'){
+            return result && ['pass','fail'].includes(result.outcome) ? {type, outcome:result.outcome} : {type, outcome:''};
+        }
+        if(type === 'score'){
+            const score = result && result.score !== undefined && result.score !== '' ? Number(result.score) : '';
+            const maxScore = result && result.maxScore !== undefined && result.maxScore !== '' ? Number(result.maxScore) : '';
+            return {type, score:Number.isFinite(score) ? score : '', maxScore:Number.isFinite(maxScore) ? maxScore : ''};
+        }
+        return {type:'passfail', outcome:''};
+    }
+    function escapeAttr(value){
+        return String(value ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function updateResultInputs(){
+        const type = normalizeResultType($('result-type').value);
+        document.querySelectorAll('.result-type-option').forEach(btn=>{
+            btn.classList.toggle('active', btn.dataset.resultType === type);
+        });
     }
 
     function createDateRow(dv='',tv='',as='',ae='',st='planning',first=false){
@@ -64,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(ex){
             $('exam-id').value=ex.id;
             $('exam-name').value=ex.name;
+            $('result-type').value=getExamResultType(ex);
             const ds=ex.examDates||(ex.examDate?[{date:ex.examDate,time:ex.examTime,status:ex.status}]:[]);
             
             if (dateIdx === 'new') {
@@ -80,8 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             $('modal-title').textContent='資格試験を追加'; examForm.reset(); $('exam-id').value='';
+            $('result-type').value='passfail';
             createDateRow('','','','','planning',true);
         }
+        updateResultInputs();
         renderRecentExams();
         const smartInput = $('smart-schedule-input');
         if(smartInput){
@@ -92,6 +127,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.openModal = openModal;
     window.editExam = openModal;
     window.addDateToExam = (eid) => { openModal(eid, 'new'); };
+    document.querySelectorAll('.result-type-option').forEach(btn=>{
+        btn.onclick=()=>{
+            $('result-type').value = btn.dataset.resultType;
+            updateResultInputs();
+        };
+    });
     
     function renderRecentExams() {
         const container = $('recent-exams-container');
@@ -277,16 +318,58 @@ document.addEventListener('DOMContentLoaded', () => {
     $('btn-close-settings').onclick=closeSettingsModal;
     settingsModal.onclick=e=>{if(e.target===settingsModal)closeSettingsModal();};
 
+    function switchMainView(view){
+        activeView = view === 'results' ? 'results' : 'schedule';
+        localStorage.setItem(MAIN_VIEW_KEY, activeView);
+        scheduleView.classList.toggle('hidden', activeView !== 'schedule');
+        resultsView.classList.toggle('hidden', activeView !== 'results');
+        scheduleViewBtn.classList.toggle('active', activeView === 'schedule');
+        resultsViewBtn.classList.toggle('active', activeView === 'results');
+        scheduleViewBtn.setAttribute('aria-selected', activeView === 'schedule' ? 'true' : 'false');
+        resultsViewBtn.setAttribute('aria-selected', activeView === 'results' ? 'true' : 'false');
+        if(activeView === 'results') renderResultsDashboard();
+    }
+    scheduleViewBtn.onclick=()=>switchMainView('schedule');
+    resultsViewBtn.onclick=()=>switchMainView('results');
+
+    function saveInlineResult(eid, dateIdx, result){
+        const ex = exams.find(e=>e.id===eid);
+        if(!ex || !ex.examDates || !ex.examDates[dateIdx]) return;
+        const type = getExamResultType(ex);
+        ex.examDates[dateIdx].result = normalizeResult(result, type);
+        saveExams();
+        renderResultsDashboard();
+    }
+    window.saveResultOutcome = (eid, dateIdx, outcome) => {
+        saveInlineResult(eid, dateIdx, {outcome});
+    };
+    window.saveResultScore = (eid, dateIdx) => {
+        const card = document.querySelector(`[data-result-card="${eid}-${dateIdx}"]`);
+        if(!card) return;
+        const ex = exams.find(e=>e.id===eid);
+        const current = ex && ex.examDates && ex.examDates[dateIdx] ? normalizeResult(ex.examDates[dateIdx].result, 'score') : {maxScore:''};
+        const rawScore = card.querySelector('.result-score-input').value.trim().replace(',', '.');
+        const score = rawScore === '' ? '' : (Number.isFinite(Number(rawScore)) ? rawScore : '');
+        saveInlineResult(eid, dateIdx, {
+            score,
+            maxScore: current.maxScore
+        });
+    };
+
 
     // === Form Submit ===
     examForm.onsubmit=e=>{
         e.preventDefault();
         const id=$('exam-id').value||Date.now().toString();
         const dateIdxStr = $('edit-date-idx').value;
+        const resultType = normalizeResultType($('result-type').value);
         
         const newFormDates=[]; dc.querySelectorAll('.date-row-wrapper').forEach(w=>{
             const dv=w.querySelector('.ed-inp').value;
-            if(dv) newFormDates.push({date:dv,time:w.querySelector('.et-inp').value,applyStart:w.querySelector('.as-inp').value,applyEnd:w.querySelector('.ae-inp').value,status:normalizeStatus(w.querySelector('.es-inp').value)});
+            if(dv){
+                const item = {date:dv,time:w.querySelector('.et-inp').value,applyStart:w.querySelector('.as-inp').value,applyEnd:w.querySelector('.ae-inp').value,status:normalizeStatus(w.querySelector('.es-inp').value)};
+                newFormDates.push(item);
+            }
         });
         
         const old=exams.find(o=>o.id===id);
@@ -297,15 +380,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 finalDates.push(...newFormDates);
             } else if (dateIdxStr !== '') {
                 const idx = parseInt(dateIdxStr);
-                if(newFormDates.length > 0) finalDates[idx] = newFormDates[0];
+                if(newFormDates.length > 0) finalDates[idx] = {...newFormDates[0], result:finalDates[idx] ? finalDates[idx].result : undefined};
             } else {
-                finalDates = newFormDates;
+                finalDates = newFormDates.map((d,i)=>({...d, result:finalDates[i] ? finalDates[i].result : undefined}));
             }
         } else {
             finalDates = newFormDates;
         }
 
-        const ex={id,name:$('exam-name').value,examDates:finalDates};
+        const ex={id,name:$('exam-name').value,resultType,examDates:finalDates};
         
         // Preserve or migrate memos
         if(old){
@@ -363,9 +446,244 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.autoUpdateStatus = autoUpdateStatus;
     
-    function render(){ autoUpdateStatus(); updateFYLabel(); renderNextExamPop(); renderMiniCal(); renderList(); }
+    function render(){ autoUpdateStatus(); updateFYLabel(); renderNextExamPop(); renderMiniCal(); renderList(); renderResultsDashboard(); }
     window.render = render;
     function updateFYLabel(){ fyLabel.textContent=`${currentFiscalYear}年度 (${currentFiscalYear.toString().slice(-2)}年4月 - ${(currentFiscalYear+1).toString().slice(-2)}年3月)`; }
+
+    function getResultRecords(){
+        const records = [];
+        exams.forEach(ex=>{
+            const type = getExamResultType(ex);
+            const ds=ex.examDates||(ex.examDate?[{date:ex.examDate,time:ex.examTime,status:ex.status,result:ex.result}]:[]);
+            ds.forEach((d,i)=>{
+                const result = normalizeResult(d.result, type);
+                records.push({ex, dateInfo:d, dateIdx:i, type, result});
+            });
+        });
+        return records.sort((a,b)=>new Date(a.dateInfo.date||0)-new Date(b.dateInfo.date||0));
+    }
+    function getResultLabel(record){
+        if(record.type === 'passfail'){
+            if(record.result.outcome === 'pass') return '<span class="result-badge result-pass">合格</span>';
+            if(record.result.outcome === 'fail') return '<span class="result-badge result-fail">不合格</span>';
+            return '<span class="result-badge result-empty">未入力</span>';
+        }
+        if(record.type === 'score'){
+            if(record.result.score === '') return '<span class="result-badge result-empty">未入力</span>';
+            const max = record.result.maxScore !== '' ? ` / ${record.result.maxScore}` : '';
+            return `<span class="result-score-text">${record.result.score}${max}点</span>`;
+        }
+        return '<span class="result-badge result-empty">未入力</span>';
+    }
+    function getResultControl(record){
+        if(record.type === 'score'){
+            const score = record.result.score !== '' ? record.result.score : '';
+            return `<div class="result-inline-score">
+                <input class="result-score-input" type="text" inputmode="decimal" value="${escapeAttr(score)}" placeholder="0" onchange="saveResultScore('${record.ex.id}', ${record.dateIdx})">
+            </div>`;
+        }
+        return `<div class="result-passfail-switch">
+            <button type="button" class="${record.result.outcome===''?'active':''}" onclick="saveResultOutcome('${record.ex.id}', ${record.dateIdx}, '')">未入力</button>
+            <button type="button" class="${record.result.outcome==='pass'?'active is-pass':''}" onclick="saveResultOutcome('${record.ex.id}', ${record.dateIdx}, 'pass')">合格</button>
+            <button type="button" class="${record.result.outcome==='fail'?'active is-fail':''}" onclick="saveResultOutcome('${record.ex.id}', ${record.dateIdx}, 'fail')">不合格</button>
+        </div>`;
+    }
+    function buildScoreChart(scoreRecords, passFailRecords){
+        const scorePoints = scoreRecords.filter(r=>r.result.score !== '');
+        const passFailPoints = passFailRecords.filter(r=>['pass','fail'].includes(r.result.outcome));
+        const points = [...scorePoints, ...passFailPoints]
+            .sort((a,b)=>new Date(a.dateInfo.date||0)-new Date(b.dateInfo.date||0))
+            .slice(-12);
+        if(!points.length){
+            return `<div class="result-chart-empty"><i class="fas fa-chart-line"></i><span>スコアまたは合否を入力すると推移グラフが表示されます。</span></div>`;
+        }
+        return '<div id="result-score-chart" class="score-chart score-chart-highcharts"></div>';
+    }
+    function renderScoreChart(scoreRecords, passFailRecords){
+        const chartEl = $('result-score-chart');
+        if(!chartEl) return;
+        const scorePoints = scoreRecords.filter(r=>r.result.score !== '');
+        const passFailPoints = passFailRecords.filter(r=>['pass','fail'].includes(r.result.outcome));
+        const points = [...scorePoints, ...passFailPoints]
+            .sort((a,b)=>new Date(a.dateInfo.date||0)-new Date(b.dateInfo.date||0))
+            .slice(-12);
+        if(!points.length) return;
+        const formatChartDate = (dateStr) => {
+            const d = new Date(dateStr);
+            if(isNaN(d)) return '';
+            return `${d.getMonth()+1}/${d.getDate()}`;
+        };
+        const formatResultDateTime = (dateInfo) => `${formatDate(dateInfo.date)}${dateInfo.time ? ` (${dateInfo.time})` : ''}`;
+        if(!window.Highcharts){
+            chartEl.innerHTML = '<div class="result-chart-empty"><i class="fas fa-chart-line"></i><span>グラフライブラリを読み込めませんでした。</span></div>';
+            return;
+        }
+        const dateKeys = [...new Set(points.map(p=>p.dateInfo.date || ''))];
+        const categories = dateKeys.map(formatChartDate);
+        const dateIndex = new Map(dateKeys.map((date, index)=>[date, index]));
+        const scoreValues = points.filter(p=>p.type === 'score' && p.result.score !== '').map(p=>Number(p.result.score));
+        const maxScore = scoreValues.length ? Math.max(...scoreValues, 550) : 550;
+        const yMax = Math.ceil(maxScore / 50) * 50;
+        const useBreak = scoreValues.some(v=>v >= 500);
+        const scoreData = points.filter(p=>p.type === 'score').map(p=>({
+            x: dateIndex.get(p.dateInfo.date || ''),
+            y: Number(p.result.score),
+            name: p.ex.name,
+            custom: { dateTime: formatResultDateTime(p.dateInfo), value: `${p.result.score}点` }
+        }));
+        const passColor = {
+            linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+            stops: [[0, 'rgba(239, 68, 68, 0)'], [0.5, '#EF4444'], [1, '#EF4444']]
+        };
+        const failColor = {
+            linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+            stops: [[0, 'rgba(59, 130, 246, 0)'], [0.5, '#3B82F6'], [1, '#3B82F6']]
+        };
+        const passFailData = points.filter(p=>p.type === 'passfail').map(p=>{
+            const isPass = p.result.outcome === 'pass';
+            return {
+                x: dateIndex.get(p.dateInfo.date || ''),
+                y: 1,
+                color: isPass ? passColor : failColor,
+                name: p.ex.name,
+                custom: { dateTime: formatResultDateTime(p.dateInfo), value: isPass ? '合格' : '不合格' }
+            };
+        });
+        Highcharts.chart(chartEl, {
+            chart: {
+                backgroundColor: 'transparent',
+                height: 320,
+                spacing: [12, 12, 22, 10],
+                style: { fontFamily: 'inherit' }
+            },
+            title: { text: null },
+            credits: { enabled: false },
+            legend: { enabled: false },
+            xAxis: {
+                categories,
+                tickLength: 0,
+                lineColor: '#E5E7EB',
+                crosshair: {
+                    color: '#CBD5E1',
+                    width: 1,
+                    dashStyle: 'ShortDash'
+                },
+                labels: { style: { color: '#6B7280', fontWeight: '700' } }
+            },
+            yAxis: [{
+                min: 0,
+                max: yMax,
+                breaks: useBreak ? [{ from: 0, to: 500, breakSize: 12 }] : [],
+                title: { text: null },
+                gridLineColor: '#EEF2F7',
+                lineWidth: 1,
+                lineColor: '#E5E7EB',
+                tickColor: '#E5E7EB',
+                crosshair: {
+                    color: '#CBD5E1',
+                    width: 1,
+                    dashStyle: 'ShortDash'
+                },
+                labels: {
+                    format: '{value}点',
+                    style: { color: '#6B7280', fontWeight: '700' }
+                }
+            }, {
+                min: 0,
+                max: 1,
+                visible: false
+            }],
+            tooltip: {
+                useHTML: true,
+                borderWidth: 0,
+                borderRadius: 8,
+                shadow: false,
+                backgroundColor: 'rgba(17, 24, 39, 0.94)',
+                style: { color: '#fff', fontWeight: '700' },
+                formatter: function(){
+                    const point = this.point;
+                    return `<strong>${point.name}</strong><br><span>${point.custom.dateTime}</span><br><span>${point.custom.value}</span>`;
+                }
+            },
+            plotOptions: {
+                series: {
+                    animation: false,
+                    states: { inactive: { opacity: 1 } }
+                },
+                line: {
+                    connectNulls: true,
+                    stickyTracking: false,
+                    findNearestPointBy: 'xy',
+                    marker: {
+                        enabled: true,
+                        radius: 4,
+                        lineWidth: 2,
+                        lineColor: '#4F46E5',
+                        fillColor: '#FFFFFF'
+                    }
+                },
+                column: {
+                    pointWidth: 24,
+                    borderRadius: '50%',
+                    borderWidth: 0
+                }
+            },
+            series: [{
+                type: 'column',
+                yAxis: 1,
+                data: passFailData,
+                color: '#3B82F6',
+                zIndex: 1
+            }, {
+                type: 'line',
+                data: scoreData,
+                color: '#4F46E5',
+                lineWidth: 4,
+                stickyTracking: false,
+                zIndex: 3
+            }]
+        });
+    }
+    function renderResultsDashboard(){
+        if(!resultsDashboard) return;
+        const records = getResultRecords();
+        const scoreRecords = records.filter(r=>r.type==='score');
+        const passFailRecords = records.filter(r=>r.type==='passfail');
+        const scoreInputCount = scoreRecords.filter(r=>r.result.score !== '').length;
+        const passFailInputCount = passFailRecords.filter(r=>['pass','fail'].includes(r.result.outcome)).length;
+        const resultChartCount = scoreInputCount + passFailInputCount;
+        if(!records.length){
+            resultsDashboard.innerHTML = `<div class="empty-state"><i class="fas fa-chart-line"></i><p>結果を表示できる試験がありません。<br>試験を追加するとここに一覧が表示されます。</p></div>`;
+            return;
+        }
+        const rows = records.map(r=>`
+            <div class="result-record-card" data-result-card="${r.ex.id}-${r.dateIdx}">
+                <div class="result-record-main">
+                    <span class="result-record-exam-name">${r.ex.name}</span>
+                    <strong class="result-record-date">${formatDate(r.dateInfo.date)}${r.dateInfo.time?` (${r.dateInfo.time})`:''}</strong>
+                </div>
+                <div class="result-record-meta">
+                    <span class="result-type-pill">${r.type==='score'?'スコア':'合否'}</span>
+                    ${getResultControl(r)}
+                </div>
+            </div>`).join('');
+        resultsDashboard.innerHTML = `
+            <div class="result-panel">
+                <div class="result-panel-head">
+                    <h3><i class="fas fa-chart-line"></i> スコア推移</h3>
+                    <span>${resultChartCount}件</span>
+                </div>
+                ${buildScoreChart(scoreRecords, passFailRecords)}
+            </div>
+            <div class="result-panel">
+                <div class="result-panel-head">
+                    <h3><i class="fas fa-list-check"></i> 成績記録</h3>
+                    <span>${records.length}件</span>
+                </div>
+                <div class="result-record-list">${rows}</div>
+            </div>`;
+        renderScoreChart(scoreRecords, passFailRecords);
+    }
 
     function renderNextExamPop(){
         if(!nextExamPop) return;
@@ -795,4 +1113,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     render();
+    switchMainView(activeView);
 });

@@ -29,27 +29,42 @@
 
         <section id="next-exam-pop" class="next-exam-pop hidden"></section>
 
-        <!-- ミニカレンダー -->
-        <section class="mini-calendar-section">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
-                <h2 class="section-heading" style="margin-bottom: 0;"><i class="far fa-calendar-alt"></i> 年間カレンダー</h2>
-                <!-- 年度切り替えUI -->
-                <div class="fiscal-year-nav">
-                    <button id="prev-year" aria-label="前の年度"><i class="fas fa-chevron-left"></i></button>
-                    <span id="current-fiscal-year">2026年度 (26年4月 - 27年3月)</span>
-                    <button id="next-year" aria-label="次の年度"><i class="fas fa-chevron-right"></i></button>
+        <main id="schedule-view">
+            <!-- ミニカレンダー -->
+            <section class="mini-calendar-section">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                    <div class="calendar-heading-row">
+                        <h2 class="section-heading" style="margin-bottom: 0;"><i class="far fa-calendar-alt"></i> 年間カレンダー</h2>
+                        <button class="section-tool-btn" id="view-results-btn" type="button"><i class="fas fa-chart-line"></i> 試験結果</button>
+                    </div>
+                    <!-- 年度切り替えUI -->
+                    <div class="fiscal-year-nav">
+                        <button id="prev-year" aria-label="前の年度"><i class="fas fa-chevron-left"></i></button>
+                        <span id="current-fiscal-year">2026年度 (26年4月 - 27年3月)</span>
+                        <button id="next-year" aria-label="次の年度"><i class="fas fa-chevron-right"></i></button>
+                    </div>
                 </div>
-            </div>
-            <div id="mini-calendar" class="mini-calendar-grid"></div>
-        </section>
+                <div id="mini-calendar" class="mini-calendar-grid"></div>
+            </section>
 
 
 
-        <!-- 登録済み試験リスト -->
-        <section>
-            <h2 class="section-heading"><i class="fas fa-bookmark"></i> 登録済み試験</h2>
-            <div id="exam-list" class="exam-list"></div>
-        </section>
+            <!-- 登録済み試験リスト -->
+            <section>
+                <h2 class="section-heading"><i class="fas fa-bookmark"></i> 登録済み試験</h2>
+                <div id="exam-list" class="exam-list"></div>
+            </section>
+        </main>
+
+        <main id="results-view" class="hidden">
+            <section class="results-section">
+                <div class="results-heading-row">
+                    <h2 class="section-heading"><i class="fas fa-chart-line"></i> 試験結果</h2>
+                    <button class="section-tool-btn" id="view-schedule-btn" type="button"><i class="far fa-calendar-alt"></i> カレンダー</button>
+                </div>
+                <div id="results-dashboard"></div>
+            </section>
+        </main>
     </div>
 
     <!-- 試験登録・編集モーダル -->
@@ -76,6 +91,15 @@
                         <label for="exam-name">資格試験名 <span class="required">*</span></label>
                         <input type="text" id="exam-name" required placeholder="例: TOEIC L&R, ITパスポート">
                         <div id="recent-exams-container" style="margin-top: 0.6rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="result-type">結果の記録方法</label>
+                        <div class="result-type-switch" id="result-type-switch">
+                            <input type="hidden" id="result-type" value="passfail">
+                            <button type="button" class="result-type-option active" data-result-type="passfail">合否</button>
+                            <button type="button" class="result-type-option" data-result-type="score">スコア</button>
+                        </div>
                     </div>
 
                     <div id="exam-dates-container" class="exam-dates-container">
@@ -156,6 +180,10 @@
     <!-- Flatpickr -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ja.js"></script>
+
+    <!-- Highcharts -->
+    <script src="https://cdn.jsdelivr.net/npm/highcharts/highcharts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highcharts/modules/broken-axis.js"></script>
 
     <script src="app.js"></script>
     <script src="script.js"></script>
